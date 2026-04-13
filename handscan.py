@@ -17,7 +17,8 @@ parser = argparse.ArgumentParser(description="A program to assist with handscann
 parser.add_argument("-e", "--event", required=True,help="The name of the event you want to analyze, assumed to be in SBC-25-daqdata")
 parser.add_argument("-s", "--scratch", required=False, default='.', help="Directory to do scratch work in i.e. untar data")
 parser.add_argument("-l", "--log", required=False, type=bool, default=True, help="Bool to print debug messages")
-parser.add_argument("-i", "--index", required=False, default=True, help="Guess at index when bubble appears")
+parser.add_argument("-i", "--index", required=False, default=0, help="Guess at index when bubble appears")
+parser.add_argument("-r", "--recon", required=False, default=False, help="Bool to stop after grabbing reconsuctrion guesses.")
 
 args = parser.parse_args()
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -37,9 +38,28 @@ os.makedirs(scratchPath, exist_ok=True)
 # recon and bubble finder stuff
 bubble_finder_info = Streamer(reconPath + 'bubble.sbc')
 bubble_finder_info = bubble_finder_info.to_dict()
-## TODO: pull out cam, pos, earliest frame
 if args.log:
-    print('Found bubble.sbc')
+    print('[Log] Found bubble.sbc')
+
+reco_info = Streamer(reconPath + 'reco.sbc')
+reco_info = reco_info.to_dict()
+if args.log:
+    print('[Log] Found reco.sbc')
+
+## TODO: pull out cam, pos, earliest frame
+"""
+    find lowest index in bubble_finder that says there is a bubble
+    print the coordinates of said bubble
+    print the camera this is in
+    repeat for cameras 2 and 3
+    print earliest frame
+
+"""
+print(f'Cam 1 earliest guess:\n Pos:\t{bubble_finder_info["pos"][0]}\nEarliest Frame:\t{bubble_finder_info["frame"][0]}')
+
+if args.recon:
+    exit()
+
 
 # handscan stuff
 with tarfile.open(dataPath) as tar:
@@ -51,36 +71,40 @@ with tarfile.open(dataPath) as tar:
 imcam_1 = None
 imcam_2 = None
 imcam_3 = None
-if int(args.index) < 10:
-    imcam_1 = img.open(scratchPath+ args.event+"/0/cam1-img0"+args.index+".png").convert("L")
-    imcam_2 = img.open(scratchPath+ args.event+"/0/cam2-img0"+args.index+".png").convert("L")
-    imcam_3 = img.open(scratchPath+ args.event+"/0/cam3-img0"+args.index+".png").convert("L")
+indexToUse = str(bubble_finder_info["frame"][0])
+if int(args.index) != -1:
+    indexToUse = str(args.index)
+if int(indexToUse) < 10:
+    imcam_1 = img.open(scratchPath+ args.event+"/0/cam1-img0"+indexToUse+".png").convert("L")
+    imcam_2 = img.open(scratchPath+ args.event+"/0/cam2-img0"+indexToUse+".png").convert("L")
+    imcam_3 = img.open(scratchPath+ args.event+"/0/cam3-img0"+indexToUse+".png").convert("L")
 else:
-    imcam_1 = img.open(scratchPath+ args.event+"/0/cam1-img"+args.index+".png").convert("L")
-    imcam_2 = img.open(scratchPath+ args.event+"/0/cam2-img"+args.index+".png").convert("L")
-    imcam_3 = img.open(scratchPath+ args.event+"/0/cam3-img"+args.index+".png").convert("L")
+    imcam_1 = img.open(scratchPath+ args.event+"/0/cam1-img"+indexToUse+".png").convert("L")
+    imcam_2 = img.open(scratchPath+ args.event+"/0/cam2-img"+indexToUse+".png").convert("L")
+    imcam_3 = img.open(scratchPath+ args.event+"/0/cam3-img"+indexToUse+".png").convert("L")
 ## in theorey i should do the subtraction thing here but its fine.
 #frame0 = img.open(scratchPath+ args.event+"/0/cam1-img00.png").convert("L") 
 #im = im - frame0
 if (args.log):
-    print("Found all 3 camera images at index " + args.index +".")
-
+    print("[Log] Found all 3 camera images at index " + indexToUse +".")
 
 # display
 fig = plt.figure()
 plt.imshow(imcam_1,cmap='grey')
-plt.title("Cam 1 for " + args.event + " at frame " +args.index)
+plt.title("Cam 1 for " + args.event + " at frame " + indexToUse)
 plt.show()
 
 plt.imshow(imcam_1,cmap='grey')
-plt.title("Cam 2 for " + args.event + " at frame " +args.index)
+plt.title("Cam 2 for " + args.event + " at frame " + indexToUse)
 plt.show()
 
 plt.imshow(imcam_3,cmap='grey')
-plt.title("Cam 3 for " + args.event + " at frame " +args.index)
+plt.title("Cam 3 for " + args.event + " at frame " + indexToUse)
 plt.show()
 
 # cleanup
 ## mostly just deleting the scratch dir to conserve disk space
+if (args.log):
+    print("[Log] Cleaning up scratch directory.")
 shutil.rmtree(scratchPath)
 
