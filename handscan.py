@@ -45,6 +45,7 @@ reco_info = Streamer(reconPath + 'reco.sbc')
 reco_info = reco_info.to_dict()
 if args.log:
     print('[Log] Found reco.sbc')
+print(bubble_finder_info)
 
 ## TODO: pull out cam, pos, earliest frame
 """
@@ -55,13 +56,24 @@ if args.log:
     print earliest frame
 
 """
+indexOfFirstCam1=0
 print(f'Cam 1 earliest guess:\n Pos:\t{bubble_finder_info["pos"][0]}\nEarliest Frame:\t{bubble_finder_info["frame"][0]}')
+indexOfFirstCam2 = indexOfFirstCam1
+while  bubble_finder_info["cam"][indexOfFirstCam2] != 2:
+    indexOfFirstCam2 += 1
+print(f'Cam 2 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam2]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam2]}')
+indexOfFirstCam3 = indexOfFirstCam2
+while  bubble_finder_info["cam"][indexOfFirstCam3] != 3:
+    indexOfFirstCam3 += 1
+print(f'Cam 3 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam3]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam3]}')
 
 if args.recon:
     exit()
 
 
 # handscan stuff
+if args.log:
+    print("[Log] untaring...")
 with tarfile.open(dataPath) as tar:
     tar.extractall(scratchPath)
     tar.close()
@@ -71,35 +83,43 @@ with tarfile.open(dataPath) as tar:
 imcam_1 = None
 imcam_2 = None
 imcam_3 = None
-indexToUse = str(bubble_finder_info["frame"][0])
 if int(args.index) != -1:
     indexToUse = str(args.index)
-if int(indexToUse) < 10:
-    imcam_1 = img.open(scratchPath+ args.event+"/0/cam1-img0"+indexToUse+".png").convert("L")
-    imcam_2 = img.open(scratchPath+ args.event+"/0/cam2-img0"+indexToUse+".png").convert("L")
-    imcam_3 = img.open(scratchPath+ args.event+"/0/cam3-img0"+indexToUse+".png").convert("L")
+    indexOfFirstCam1 = indexToUse
+    indexOfFirstCam2 = indexToUse
+    indexOfFirstCam3 = indexToUse
+if int(indexOfFirstCam1) <10:
+    imcam_1 = img.open(scratchPath+ args.event+"/0/cam1-img0"+indexOfFirstCam1+".png").convert("L")
 else:
-    imcam_1 = img.open(scratchPath+ args.event+"/0/cam1-img"+indexToUse+".png").convert("L")
-    imcam_2 = img.open(scratchPath+ args.event+"/0/cam2-img"+indexToUse+".png").convert("L")
-    imcam_3 = img.open(scratchPath+ args.event+"/0/cam3-img"+indexToUse+".png").convert("L")
+    imcam_1 = img.open(scratchPath+ args.event+"/0/cam1-img"+indexOfFirstCam1+".png").convert("L")
+if int(indexOfFirstCam2) <10:
+    imcam_2 = img.open(scratchPath+ args.event+"/0/cam2-img0"+indexOfFirstCam2+".png").convert("L")
+else:
+    imcam_2 = img.open(scratchPath+ args.event+"/0/cam2-img"+indexOfFirstCam2+".png").convert("L")
+if int(indexOfFirstCam3) <10:
+    imcam_3 = img.open(scratchPath+ args.event+"/0/cam3-img0"+indexOfFirstCam3+".png").convert("L")
+else:
+    imcam_3 = img.open(scratchPath+ args.event+"/0/cam3-img"+indexOfFirstCam3+".png").convert("L")
+
+
 ## in theorey i should do the subtraction thing here but its fine.
 #frame0 = img.open(scratchPath+ args.event+"/0/cam1-img00.png").convert("L") 
 #im = im - frame0
 if (args.log):
-    print("[Log] Found all 3 camera images at index " + indexToUse +".")
+    print("[Log] Found all 3 cameras.")
 
 # display
 fig = plt.figure()
 plt.imshow(imcam_1,cmap='grey')
-plt.title("Cam 1 for " + args.event + " at frame " + indexToUse)
+plt.title("Cam 1 for " + args.event + " at frame " + indexOfFirstCam1)
 plt.show()
 
-plt.imshow(imcam_1,cmap='grey')
-plt.title("Cam 2 for " + args.event + " at frame " + indexToUse)
+plt.imshow(imcam_2,cmap='grey')
+plt.title("Cam 2 for " + args.event + " at frame " + indexOfFirstCam2)
 plt.show()
 
 plt.imshow(imcam_3,cmap='grey')
-plt.title("Cam 3 for " + args.event + " at frame " + indexToUse)
+plt.title("Cam 3 for " + args.event + " at frame " + indexOfFirstCam3)
 plt.show()
 
 # cleanup
