@@ -48,18 +48,22 @@ reco_info = Streamer(reconPath + 'reco.sbc')
 reco_info = reco_info.to_dict()
 if args.log:
     print('[Log] Found reco.sbc')
-print(bubble_finder_info)
+
 ## finds the earliest frame assosioated with a given camera that it thinks there is a bubble in
 ### should probbaly add a minimum threshold or something like that
-## TODO: make this actualy check the event index
 def findEarliest(camNum):
-    n_minSoFar = 0
-    f_minSoFar = 100
+    n_minSoFar = None
+    f_minSoFar = 999
     for n in range(0,len(bubble_finder_info["frame"])):
-            #if (bubble_finder_info["frame"][n] < f_minSoFar) and (bubble_finder_info["cam"][n] == camNum) and (bubble_finder_info["ev"][n] == args.event):
-            if (bubble_finder_info["frame"][n] < f_minSoFar) and (bubble_finder_info["cam"][n] == camNum):
+            if (bubble_finder_info["frame"][n] < f_minSoFar) and (bubble_finder_info["cam"][n] == camNum) and (int(bubble_finder_info["ev"][n]) == int(args.event)):
                 f_minSoFar = bubble_finder_info["frame"][n]
                 n_minSoFar = n
+    if f_minSoFar == 999:
+        print("Could not find a bubble in event " +args.event)
+        print(bubble_finder_info["frame"])
+        print(bubble_finder_info["ev"])
+        print(bubble_finder_info["cam"])
+        exit()
     return n_minSoFar
 
 ## for each camera, find the earliest possible bubble, then tell the user the camera, frame, and coordinates
