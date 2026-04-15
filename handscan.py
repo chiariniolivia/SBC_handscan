@@ -17,11 +17,13 @@ parser = argparse.ArgumentParser(description="A program to assist with handscann
 ## SBC input stuff
 parser.add_argument("-r", "--run", required=True,help="The name of the run you want to analyze, assumed to be in SBC-25-daqdata")
 parser.add_argument("-e","--event",required=False, default=0, help="Event number for the run you are analyzing")
-parser.add_argument("-i", "--index", required=False, default=-1, help="Guess at index when bubble appears")
+parser.add_argument("-i", "--indices", required=False, nargs=3, type=int, default=[-1,-1,-1], help="Guess at indcies when bubble appears")
 ## output stuff
 parser.add_argument("-R", "--recon", default=False,required=False,action="store_true", help="Flag to stop after grabbing reconsuctrion guesses.")
 parser.add_argument("-l", "--log", default=False, required=False,action="store_true", help="Flag to print debug messages")
 parser.add_argument("-s", "--scratch", required=False, default='.', help="Directory to do scratch work in i.e. untar data")
+
+
 
 args = parser.parse_args()
 ## untar throws a warninig that is annoying so i added this to avoid that
@@ -63,7 +65,6 @@ def findEarliest(camNum):
         print(bubble_finder_info["frame"])
         print(bubble_finder_info["ev"])
         print(bubble_finder_info["cam"])
-        exit()
     return n_minSoFar
 
 ## for each camera, find the earliest possible bubble, then tell the user the camera, frame, and coordinates
@@ -100,28 +101,28 @@ imcam_1 = None
 imcam_2 = None
 imcam_3 = None
 ## if the user gave an index to look at the frames with, use that. otherwise just use the earliest possible bubble
-if int(args.index) != -1:
-    frameToUse = str(args.index)
-    indexOfFirstCam1 = frameToUse
-    indexOfFirstCam2 = frameToUse
-    indexOfFirstCam3 = frameToUse
-else:
-    indexOfFirstCam1 = bubble_finder_info["frame"][indexOfFirstCam1]
-    indexOfFirstCam2 = bubble_finder_info["frame"][indexOfFirstCam2]
-    indexOfFirstCam3 = bubble_finder_info["frame"][indexOfFirstCam3]
+cam1Frame = bubble_finder_info["frame"][indexOfFirstCam1]
+cam2Frame = bubble_finder_info["frame"][indexOfFirstCam2]
+cam3Frame = bubble_finder_info["frame"][indexOfFirstCam3]
+guess1, guess2,guess3 = args.indices
+
+if  guess1 != -1 or guess2 != -1 or guess3 != -1:
+    cam1Frame = guess1
+    cam2Frame = guess2
+    cam3Frame = guess3
 
 if int(indexOfFirstCam1) <10:
-    imcam_1 = img.open(scratchPath+ args.run+"/"+str(args.event)+"/cam1-img0"+str(indexOfFirstCam1)+".png").convert("L")
+    imcam_1 = img.open(scratchPath+ args.run+"/"+str(args.event)+"/cam1-img0"+str(cam1Frame)+".png").convert("L")
 else:
-    imcam_1 = img.open(scratchPath+ args.run+"/"+str(args.event)+"/cam1-img"+str(indexOfFirstCam1)+".png").convert("L")
+    imcam_1 = img.open(scratchPath+ args.run+"/"+str(args.event)+"/cam1-img"+str(cam1Frame)+".png").convert("L")
 if int(indexOfFirstCam2) <10:
-    imcam_2 = img.open(scratchPath+ args.run+"/"+str(args.event)+"/cam2-img0"+str(indexOfFirstCam2)+".png").convert("L")
+    imcam_2 = img.open(scratchPath+ args.run+"/"+str(args.event)+"/cam2-img0"+str(cam2Frame)+".png").convert("L")
 else:
-    imcam_2 = img.open(scratchPath+ args.run+"/"+str(args.event)+"/cam2-img"+str(indexOfFirstCam2)+".png").convert("L")
+    imcam_2 = img.open(scratchPath+ args.run+"/"+str(args.event)+"/cam2-img"+str(cam2Frame)+".png").convert("L")
 if int(indexOfFirstCam3) <10:
-    imcam_3 = img.open(scratchPath+ args.run+"/"+str(args.event)+"/cam3-img0"+str(indexOfFirstCam3)+".png").convert("L")
+    imcam_3 = img.open(scratchPath+ args.run+"/"+str(args.event)+"/cam3-img0"+str(cam3Frame)+".png").convert("L")
 else:
-    imcam_3 = img.open(scratchPath+ args.run+"/"+str(args.event)+"/cam3-img"+str(indexOfFirstCam3)+".png").convert("L")
+    imcam_3 = img.open(scratchPath+ args.run+"/"+str(args.event)+"/cam3-img"+str(cam3Frame)+".png").convert("L")
 
 
 ## in theorey i should do the diff frame  here but its fine for now
@@ -134,15 +135,15 @@ if (args.log):
 # display all images one by one at their respective frame indicies
 fig = plt.figure()
 plt.imshow(imcam_1,cmap='grey')
-plt.title("Cam 1 for " + args.run + " during event "+ str(args.event) +" at frame " + str(indexOfFirstCam1))
+plt.title("Cam 1 for " + args.run + " during event "+ str(args.event) +" at frame " + str(cam1Frame))
 plt.show()
 
 plt.imshow(imcam_2,cmap='grey')
-plt.title("Cam 2 for " + args.run + " during event "+ str(args.event) +" at frame " + str(indexOfFirstCam2))
+plt.title("Cam 2 for " + args.run + " during event "+ str(args.event) +" at frame " + str(cam2Frame))
 plt.show()
 
 plt.imshow(imcam_3,cmap='grey')
-plt.title("Cam 3 for " + args.run + " during event "+ str(args.event) +" at frame " + str(indexOfFirstCam3))
+plt.title("Cam 3 for " + args.run + " during event "+ str(args.event) +" at frame " + str(cam3Frame))
 plt.show()
 
 # cleanup
