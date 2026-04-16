@@ -87,7 +87,7 @@ if args.recon:
 
 
 # handscan stuff
-## make a temp directory to untar things in that is removed when exiting
+## make a temp directory to untar things in that is removed when exiting unless flagged otherwise
 scratchPath = scratchPath + "/handscanScratch/"
 os.makedirs(scratchPath, exist_ok=True)
 ## if the user gave an index to look at the frames with, use that. otherwise just use the earliest possible bubble
@@ -102,6 +102,7 @@ if  guess1 != -1 or guess2 != -1 or guess3 != -1:
     cam3Frame = guess3
 
 try:
+    ## try to open an image file, if you can then theres no need to untar the entire run again
     if args.log:
         print("[Log] Checking if this is a previously extracted event")
     if int(cam1Frame) <10:
@@ -109,6 +110,7 @@ try:
     else:
         imcam_1 = img.open(scratchPath+ args.run+"/"+str(args.event)+"/cam1-img"+str(cam1Frame)+".png").convert("L")
 except:
+    ## didnt find it, so untar
     if args.log:
         print("[Log] Did not find, untaring...")
     with tarfile.open(dataPath) as tar:
@@ -157,7 +159,7 @@ plt.show()
 # cleanup
 ## mostly just deleting the scratch dir to conserve disk space
 
-if (args.keep):
+if not (args.keep):
     if (args.log):
         print("[Log] Cleaning up scratch directory.")
         shutil.rmtree(scratchPath)
