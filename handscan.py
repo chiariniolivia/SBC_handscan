@@ -22,6 +22,7 @@ parser.add_argument("-i", "--indices", required=False, nargs=3, type=int, defaul
 parser.add_argument("-R", "--recon", default=False,required=False,action="store_true", help="Flag to stop after grabbing reconsuctrion guesses.")
 parser.add_argument("-l", "--log", default=False, required=False,action="store_true", help="Flag to print debug messages")
 parser.add_argument("-s", "--scratch", required=False, default='.', help="Directory to do scratch work in i.e. untar data")
+parser.add_argument("-k", "--keep", required=False, default=False,action="store_true", help="Flag to keep events and not clear scratch directory.")
 
 
 
@@ -86,20 +87,9 @@ if args.recon:
 
 
 # handscan stuff
-if args.log:
-    print("[Log] untaring...")
-
 ## make a temp directory to untar things in that is removed when exiting
 scratchPath = scratchPath + "/handscanScratch/"
 os.makedirs(scratchPath, exist_ok=True)
-
-with tarfile.open(dataPath) as tar:
-    tar.extractall(scratchPath)
-    tar.close()
-
-imcam_1 = None
-imcam_2 = None
-imcam_3 = None
 ## if the user gave an index to look at the frames with, use that. otherwise just use the earliest possible bubble
 cam1Frame = bubble_finder_info["frame"][indexOfFirstCam1]
 cam2Frame = bubble_finder_info["frame"][indexOfFirstCam2]
@@ -111,15 +101,33 @@ if  guess1 != -1 or guess2 != -1 or guess3 != -1:
     cam2Frame = guess2
     cam3Frame = guess3
 
-if int(indexOfFirstCam1) <10:
+try:
+    if args.log:
+        print("[Log] Checking if this is a previously extracted event")
+    if int(cam1Frame) <10:
+        imcam_1 = img.open(scratchPath+ args.run+"/"+str(args.event)+"/cam1-img0"+str(cam1Frame)+".png").convert("L")
+    else:
+        imcam_1 = img.open(scratchPath+ args.run+"/"+str(args.event)+"/cam1-img"+str(cam1Frame)+".png").convert("L")
+except:
+    if args.log:
+        print("[Log] Did not find, untaring...")
+    with tarfile.open(dataPath) as tar:
+        tar.extractall(scratchPath)
+        tar.close()
+
+imcam_1 = None
+imcam_2 = None
+imcam_3 = None
+
+if int(cam1Frame) <10:
     imcam_1 = img.open(scratchPath+ args.run+"/"+str(args.event)+"/cam1-img0"+str(cam1Frame)+".png").convert("L")
 else:
     imcam_1 = img.open(scratchPath+ args.run+"/"+str(args.event)+"/cam1-img"+str(cam1Frame)+".png").convert("L")
-if int(indexOfFirstCam2) <10:
+if int(cam2Frame) <10:
     imcam_2 = img.open(scratchPath+ args.run+"/"+str(args.event)+"/cam2-img0"+str(cam2Frame)+".png").convert("L")
 else:
     imcam_2 = img.open(scratchPath+ args.run+"/"+str(args.event)+"/cam2-img"+str(cam2Frame)+".png").convert("L")
-if int(indexOfFirstCam3) <10:
+if int(cam3Frame) <10:
     imcam_3 = img.open(scratchPath+ args.run+"/"+str(args.event)+"/cam3-img0"+str(cam3Frame)+".png").convert("L")
 else:
     imcam_3 = img.open(scratchPath+ args.run+"/"+str(args.event)+"/cam3-img"+str(cam3Frame)+".png").convert("L")
@@ -149,7 +157,7 @@ plt.show()
 # cleanup
 ## mostly just deleting the scratch dir to conserve disk space
 
-if (args.log):
-    print("[Log] Cleaning up scratch directory.")
-
-shutil.rmtree(scratchPath)
+if (args.keep):
+    if (args.log):
+        print("[Log] Cleaning up scratch directory.")
+        shutil.rmtree(scratchPath)
