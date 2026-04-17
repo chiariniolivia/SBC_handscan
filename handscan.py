@@ -3,7 +3,8 @@
 ## argparse is just to make the arguments look nice and have a help command
 ## pyplot is for manual coordinate finding when handscaning
 ## warninigs is just for the output to look better
-import sys, os, argparse, tarfile,shutil, warnings
+## atexit is to clear the scratch directory even if the user does an esc sequence or an error happens after untarring
+import sys, os, argparse, tarfile,shutil, warnings, atexit
 from PIL import Image as img
 import matplotlib.pyplot as plt
 import numpy as np
@@ -39,6 +40,17 @@ if (not (os.path.exists(reconPath)) or not (os.path.exists(dataPath)) or not (os
     sys.exit("ERROR: The event directory in dataq or recon could not be found.")
 if not (os.access(scratchPath, os.W_OK)):
     sys.exit("ERROR: The scratch directory cannot be written in")
+def cleanUp():
+    # cleanup
+    ## mostly just deleting the scratch dir to conserve disk space
+    if args.log:
+        print("[Log] Exiting...")
+    if not (args.keep):
+        if (args.log):
+            print("[Log] Cleaning up scratch directory.")
+        shutil.rmtree(scratchPath)
+atexit.register(cleanUp)
+
 
 
 # recon and bubble finder getting
@@ -54,6 +66,7 @@ if args.log:
 
 ## finds the earliest frame assosioated with a given camera that it thinks there is a bubble in
 ### should probbaly add a minimum threshold or something like that
+couldntFindCount = 0
 def findEarliest(camNum):
     n_minSoFar = None
     f_minSoFar = 999
@@ -62,23 +75,23 @@ def findEarliest(camNum):
                 f_minSoFar = bubble_finder_info["frame"][n]
                 n_minSoFar = n
     if f_minSoFar == 999:
+        couldntFindCount +=1
         print("Could not find a bubble in event " +args.event)
-        print(bubble_finder_info["frame"])
-        print(bubble_finder_info["ev"])
-        print(bubble_finder_info["cam"])
     return n_minSoFar
 
 ## for each camera, find the earliest possible bubble, then tell the user the camera, frame, and coordinates
 
+
+
 indexOfFirstCam1=findEarliest(1)
-print(f'Cam 1 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam1]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam1]}')
-
 indexOfFirstCam2=findEarliest(2)
-print(f'Cam 2 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam2]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam2]}')
-
 indexOfFirstCam3=findEarliest(3)
-print(f'Cam 3 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam3]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam3]}')
 
+if couldntFindCount == 3:
+    print("No bubbles where found for "+ args.run +" during event " +args.event +" for any camera. Exiting.")
+print(f'Cam 1 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam1]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam1]}')
+print(f'Cam 2 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam2]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam2]}')
+print(f'Cam 3 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam3]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam3]}')
 
 ## if you just wanted to grab the reconscution data, then we are done here
 if args.recon:
@@ -156,10 +169,3 @@ plt.imshow(imcam_3,cmap='grey')
 plt.title("Cam 3 for " + args.run + " during event "+ str(args.event) +" at frame " + str(cam3Frame))
 plt.show()
 
-# cleanup
-## mostly just deleting the scratch dir to conserve disk space
-
-if not (args.keep):
-    if (args.log):
-        print("[Log] Cleaning up scratch directory.")
-        shutil.rmtree(scratchPath)
