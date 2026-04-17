@@ -40,15 +40,17 @@ if (not (os.path.exists(reconPath)) or not (os.path.exists(dataPath)) or not (os
     sys.exit("ERROR: The event directory in dataq or recon could not be found.")
 if not (os.access(scratchPath, os.W_OK)):
     sys.exit("ERROR: The scratch directory cannot be written in")
+
 def cleanUp():
-    # cleanup
-    ## mostly just deleting the scratch dir to conserve disk space
+    # cleanup function, after we define the scratchPath so that we know what directory to cleanup incase something else goes wrong
+    ## mostly just deleting the scratch dir to conserve disk space and logging the exit
     if args.log:
         print("[Log] Exiting...")
     if not (args.keep):
         if (args.log):
             print("[Log] Cleaning up scratch directory.")
         shutil.rmtree(scratchPath)
+## just set this function to run when an exit command is given, so that we can garuntee we conserve disk space
 atexit.register(cleanUp)
 
 
@@ -80,15 +82,13 @@ def findEarliest(camNum):
     return n_minSoFar
 
 ## for each camera, find the earliest possible bubble, then tell the user the camera, frame, and coordinates
-
-
-
 indexOfFirstCam1=findEarliest(1)
 indexOfFirstCam2=findEarliest(2)
 indexOfFirstCam3=findEarliest(3)
 
 if couldntFindCount == 3:
     print("No bubbles where found for "+ args.run +" during event " +args.event +" for any camera. Exiting.")
+    exit(1)
 print(f'Cam 1 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam1]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam1]}')
 print(f'Cam 2 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam2]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam2]}')
 print(f'Cam 3 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam3]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam3]}')
@@ -96,7 +96,6 @@ print(f'Cam 3 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam
 ## if you just wanted to grab the reconscution data, then we are done here
 if args.recon:
     exit()
-    shutil.rmtree(scratchPath)
 
 
 # handscan stuff
@@ -169,3 +168,4 @@ plt.imshow(imcam_3,cmap='grey')
 plt.title("Cam 3 for " + args.run + " during event "+ str(args.event) +" at frame " + str(cam3Frame))
 plt.show()
 
+exit(0)
