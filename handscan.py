@@ -6,6 +6,7 @@
 ## atexit is to clear the scratch directory even if the user does an esc sequence or an error happens after untarring
 import sys, os, argparse, tarfile,shutil, warnings, atexit
 from PIL import Image as img
+from collections import Counter, defaultdict
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -66,10 +67,13 @@ reco_info = reco_info.to_dict()
 if args.log:
     print('[Log] Found reco.sbc')
 
+
 ## finds the earliest frame assosioated with a given camera that it thinks there is a bubble in
 ### should probbaly add a minimum threshold or something like that
-couldntFindCount = 0
+couldntFindCount= 0
+
 def findEarliest(camNum):
+    global couldntFindCount 
     n_minSoFar = None
     f_minSoFar = 999
     for n in range(0,len(bubble_finder_info["frame"])):
@@ -80,6 +84,45 @@ def findEarliest(camNum):
         couldntFindCount +=1
         print("Could not find a bubble in event " +args.event)
     return n_minSoFar
+
+
+def estBubbleCount(firstIndex, n):
+    frames = bubble_finder_info["frame"]
+    cams = bubble_finder_info["cam"]
+    evs = bubble_finder_info["ev"]
+    seq = [(f, c) for f, c, e in zip(frames, cams, evs) if (e == int(args.event)) and ( f >= bubble_finder_info["frame"][firstIndex] and f <= bubble_finder_info["frame"][firstIndex] + (10 + n)) ]
+    if not seq:
+        return -1
+
+    mult = Counter(seq)  # {(frame, cam): multiplicity}
+    byCamDict = defaultdict(dict)
+    lastSeen = set()
+    for f, c in seq:
+        if (f,c) not in lastSeen:
+            byCamDict[c][f] = mult[(f,c)]
+            lastSeen.add((f,c)) 
+   
+    
+    sortedByMult = sorted(mult.keys(), key = lambda k: mult[k], reverse=True)
+    checked  = []
+    for f0, c0 in sortedByMult:
+        if ( (f0,c0) in checked):
+            continue
+        if ((f0,1) not in sortedByMult) or ((f0,2) not in sortedByMult) or ((f0,3) not in sortedByMult):
+            print("hey this is an outlier maybe")
+        checked.append((f0,c0))
+        m0 = mult[(f0,c0)]
+        print(m0)
+        ok = True
+        for offset in range(3):    
+            if  mult[f0 + offset, c0] < mult[f0, c0]:
+                ok = False
+                break
+        if ok:
+            return m0
+
+    return -1
+
 
 ## for each camera, find the earliest possible bubble, then tell the user the camera, frame, and coordinates
 indexOfFirstCam1=findEarliest(1)
@@ -92,6 +135,9 @@ if couldntFindCount == 3:
 print(f'Cam 1 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam1]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam1]}')
 print(f'Cam 2 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam2]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam2]}')
 print(f'Cam 3 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam3]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam3]}')
+
+minIndex = max(indexOfFirstCam1, indexOfFirstCam2,indexOfFirstCam3)
+print("Estimated to have " +str(estBubbleCount(minIndex,5))+" bubbles.")
 
 ## if you just wanted to grab the reconscution data, then we are done here
 if args.recon:
