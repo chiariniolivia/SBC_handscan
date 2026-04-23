@@ -22,6 +22,7 @@ parser.add_argument("-e","--event",required=False, default=0, help="Event number
 parser.add_argument("-i", "--indices", required=False, nargs=3, type=int, default=[-1,-1,-1], help="Guess at indcies when bubble appears")
 ## output stuff
 parser.add_argument("-R", "--recon", default=False,required=False,action="store_true", help="Flag to stop after grabbing reconsuctrion guesses.")
+parser.add_argument("-E", "--allevents", default=False, required=False, action="store_true", help="Flag to go through all events for a run automatically")
 parser.add_argument("-l", "--log", default=False, required=False,action="store_true", help="Flag to print debug messages")
 parser.add_argument("-s", "--scratch", required=False, default='.', help="Directory to do scratch work in i.e. untar data")
 parser.add_argument("-k", "--keep", required=False, default=False,action="store_true", help="Flag to keep events and not clear scratch directory.")
@@ -33,12 +34,12 @@ args = parser.parse_args()
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
-# make sure event exists, and we can write to the scratch direcotry for untaring
+# make sure run exists, and we can write to the scratch direcotry for untaring
 reconPath = '/exp/e961/data/SBC-25-recon/dev-output/' + args.run + '/' 
 dataPath = '/exp/e961/data/SBC-25-daqdata/' + args.run + '.tar'
 scratchPath = args.scratch
 if (not (os.path.exists(reconPath)) or not (os.path.exists(dataPath)) or not (os.path.exists(scratchPath))):
-    sys.exit("ERROR: The event directory in dataq or recon could not be found.")
+    sys.exit("ERROR: The run directory in dataq or recon could not be found.")
 if not (os.access(scratchPath, os.W_OK)):
     sys.exit("ERROR: The scratch directory cannot be written in")
 
@@ -68,78 +69,104 @@ if args.log:
     print('[Log] Found reco.sbc')
 
 
+
+
+
+eventsToCheck = []
+if args.allevents:
+    if args.log:
+        print("[Log] going through all events")
+    for evNum in bubble_finder_info["ev"]:
+        if evNum not in eventsToCheck:
+            eventsToCheck.append(evNum)
+else:
+    eventsToCheck.append(event)
+
+eventsToCheck.sort()
+
 ## finds the earliest frame assosioated with a given camera that it thinks there is a bubble in
 ### should probbaly add a minimum threshold or something like that
-couldntFindCount= 0
+for eventNum in eventsToCheck:
 
-def findEarliest(camNum):
-    global couldntFindCount 
-    n_minSoFar = None
-    f_minSoFar = 999
-    for n in range(0,len(bubble_finder_info["frame"])):
-            if (bubble_finder_info["frame"][n] < f_minSoFar) and (bubble_finder_info["cam"][n] == camNum) and (int(bubble_finder_info["ev"][n]) == int(args.event)):
-                f_minSoFar = bubble_finder_info["frame"][n]
-                n_minSoFar = n
-    if f_minSoFar == 999:
-        couldntFindCount +=1
-        print("Could not find a bubble in event " +args.event)
-    return n_minSoFar
+    couldntFindCount= 0
+
+    def findEarliest(camNum):
+        global couldntFindCount 
+        n_minSoFar = None
+        f_minSoFar = 999
+        for n in range(0,len(bubble_finder_info["frame"])):
+                if (bubble_finder_info["frame"][n] < f_minSoFar) and (bubble_finder_info["cam"][n] == camNum) and (int(bubble_finder_info["ev"][n]) == int(eventNum)):
+                    f_minSoFar = bubble_finder_info["frame"][n]
+                    n_minSoFar = n
+        if f_minSoFar == 999:
+            couldntFindCount +=1
+            print("Could not find a bubble in event " + str(eventNum))
+        return n_minSoFar
 
 
-def estBubbleCount(firstIndex, n):
-    frames = bubble_finder_info["frame"]
-    cams = bubble_finder_info["cam"]
-    evs = bubble_finder_info["ev"]
-    seq = [(f, c) for f, c, e in zip(frames, cams, evs) if (e == int(args.event)) and ( f >= bubble_finder_info["frame"][firstIndex] and f <= bubble_finder_info["frame"][firstIndex] + (10 + n)) ]
-    if not seq:
-        return -1
+    def estBubbleCount(firstIndex, n):
+        frames = bubble_finder_info["frame"]
+        cams = bubble_finder_info["cam"]
+        evs = bubble_finder_info["ev"]
+        seq = [(f, c) for f, c, e in zip(frames, cams, evs) if (e == int(eventNum)) and ( f >= bubble_finder_info["frame"][firstIndex] and f <= bubble_finder_info["frame"][firstIndex] + (10 + n)) ]
+        if not seq:
+            return -1
 
-    mult = Counter(seq)  # {(frame, cam): multiplicity}
-    byCamDict = defaultdict(dict)
-    lastSeen = set()
-    for f, c in seq:
-        if (f,c) not in lastSeen:
-            byCamDict[c][f] = mult[(f,c)]
-            lastSeen.add((f,c)) 
+        mult = Counter(seq)  # {(frame, cam): multiplicity}
+        byCamDict = defaultdict(dict)
+        lastSeen = set()
+        for f, c in seq:
+            if (f,c) not in lastSeen:
+                byCamDict[c][f] = mult[(f,c)]
+                lastSeen.add((f,c)) 
    
     
-    sortedByMult = sorted(mult.keys(), key = lambda k: mult[k], reverse=True)
-    checked  = []
-    for f0, c0 in sortedByMult:
-        if ( (f0,c0) in checked):
-            continue
-        if ((f0,1) not in sortedByMult) or ((f0,2) not in sortedByMult) or ((f0,3) not in sortedByMult):
-            print("hey this is an outlier maybe")
-        checked.append((f0,c0))
-        m0 = mult[(f0,c0)]
-        print(m0)
-        ok = True
-        for offset in range(3):    
-            if  mult[f0 + offset, c0] < mult[f0, c0]:
-                ok = False
-                break
-        if ok:
-            return m0
+        sortedByMult = sorted(mult.keys(), key = lambda k: mult[k], reverse=True)
+        checked  = []
+        for f0, c0 in sortedByMult:
+            if ( (f0,c0) in checked):
+                continue
+            #if ((f0,1) not in sortedByMult) or ((f0,2) not in sortedByMult) or ((f0,3) not in sortedByMult):
+            #    print("hey this is an outlier maybe")
+            checked.append((f0,c0))
+            m0 = mult[(f0,c0)]
+            #print(m0)
+            ok = True
+            for offset in range(3):    
+                if  mult[f0 + offset, c0] < mult[f0, c0]:
+                    ok = False
+                    break
+            if ok:
+                return m0
 
-    return -1
+        return -1
 
 
-## for each camera, find the earliest possible bubble, then tell the user the camera, frame, and coordinates
-indexOfFirstCam1=findEarliest(1)
-indexOfFirstCam2=findEarliest(2)
-indexOfFirstCam3=findEarliest(3)
+    ## for each camera, find the earliest possible bubble, then tell the user the camera, frame, and coordinates
+    print("\n\nFor event "+str(eventNum))
+    indexOfFirstCam1=findEarliest(1)
+    indexOfFirstCam2=findEarliest(2)
+    indexOfFirstCam3=findEarliest(3)
+    
+    if couldntFindCount == 3:
+        print("No bubbles where found for "+ args.run +" during event " + eventNum +" for any camera. Exiting.")
+        exit(1)
+    print(f'Cam 1 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam1]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam1]}')
+    print(f'Cam 2 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam2]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam2]}')
+    print(f'Cam 3 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam3]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam3]}')
+    if indexOfFirstCam1 is None:
+        indexOfFirstCam1=-1
+    if indexOfFirstCam2 is None:
+        indexOfFirstCam2=-1
+    if indexOfFirstCam3 is None:
+        indexOfFirstCam3=-1
+    
+    minIndex = max(indexOfFirstCam1, indexOfFirstCam2,indexOfFirstCam3)
+    print("Estimated to have " +str(estBubbleCount(minIndex,5))+" bubbles.")
 
-if couldntFindCount == 3:
-    print("No bubbles where found for "+ args.run +" during event " +args.event +" for any camera. Exiting.")
-    exit(1)
-print(f'Cam 1 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam1]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam1]}')
-print(f'Cam 2 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam2]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam2]}')
-print(f'Cam 3 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam3]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam3]}')
+    ## if you just wanted to grab the reconscution data, then we are done here
 
-minIndex = max(indexOfFirstCam1, indexOfFirstCam2,indexOfFirstCam3)
-print("Estimated to have " +str(estBubbleCount(minIndex,5))+" bubbles.")
 
-## if you just wanted to grab the reconscution data, then we are done here
 if args.recon:
     exit()
 
