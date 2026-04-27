@@ -80,7 +80,7 @@ if args.allevents:
         if evNum not in eventsToCheck:
             eventsToCheck.append(evNum)
 else:
-    eventsToCheck.append(event)
+    eventsToCheck.append(args.event)
 
 eventsToCheck.sort()
 
