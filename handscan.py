@@ -132,14 +132,14 @@ for eventNum in eventsToCheck:
             m0 = mult[(f0,c0)]
             #print(m0)
             ok = True
-            for offset in range(3):    
+            for offset in range(n):    
                 if  mult[f0 + offset, c0] < mult[f0, c0]:
                     ok = False
                     break
             if ok:
                 return m0
 
-        return -1
+        return 0
 
 
     ## for each camera, find the earliest possible bubble, then tell the user the camera, frame, and coordinates
@@ -151,9 +151,9 @@ for eventNum in eventsToCheck:
     if couldntFindCount == 3:
         print("No bubbles where found for "+ args.run +" during event " + eventNum +" for any camera. Exiting.")
         exit(1)
-    print(f'Cam 1 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam1]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam1]}')
-    print(f'Cam 2 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam2]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam2]}')
-    print(f'Cam 3 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam3]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam3]}')
+    #print(f'Cam 1 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam1]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam1]}')
+    #print(f'Cam 2 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam2]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam2]}')
+    #print(f'Cam 3 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam3]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam3]}')
     if indexOfFirstCam1 is None:
         indexOfFirstCam1=-1
     if indexOfFirstCam2 is None:
@@ -162,7 +162,7 @@ for eventNum in eventsToCheck:
         indexOfFirstCam3=-1
     
     minIndex = max(indexOfFirstCam1, indexOfFirstCam2,indexOfFirstCam3)
-    print("Estimated to have " +str(estBubbleCount(minIndex,5))+" bubbles.")
+    print("Estimated to have " +str(estBubbleCount(minIndex,3))+" bubbles.")
 
     ## if you just wanted to grab the reconscution data, then we are done here
 
