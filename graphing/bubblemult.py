@@ -3,7 +3,7 @@ import numpy as np
 import sys
 from openpyxl import load_workbook
 
-def nth_col_numbers(path, n, exclude=None, sheet_name=None):
+def nth_col_numbers(path, n, exclude=None, runType=None,  sheet_name=None):
     wb = load_workbook(path, data_only=True)
     ws = wb[sheet_name] if sheet_name else wb.active    
     nums = []
@@ -11,14 +11,14 @@ def nth_col_numbers(path, n, exclude=None, sheet_name=None):
     if exclude is not None:
         rowCount = []
     i=0
-    for row in ws.iter_rows(min_col=(n+1), max_col=(n+1), values_only=True):
+    for row in ws.iter_rows(min_col=(0), max_col=(18), values_only=True):
         if exclude is not None:
             if i in exclude:
                 i+=1
                 continue
             i+=1
-
-        val = row[0]
+        
+        val = row[n]
         if isinstance(val, (int, float)):
             nums.append(val)
         else:
