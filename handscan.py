@@ -151,9 +151,9 @@ for eventNum in eventsToCheck:
     if couldntFindCount == 3:
         print("No bubbles where found for "+ args.run +" during event " + eventNum +" for any camera. Exiting.")
         exit(1)
-    #print(f'Cam 1 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam1]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam1]}')
-    #print(f'Cam 2 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam2]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam2]}')
-    #print(f'Cam 3 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam3]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam3]}')
+    print(f'Cam 1 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam1]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam1]}')
+    print(f'Cam 2 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam2]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam2]}')
+    print(f'Cam 3 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam3]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam3]}')
     if indexOfFirstCam1 is None:
         indexOfFirstCam1=-1
     if indexOfFirstCam2 is None:
@@ -163,7 +163,11 @@ for eventNum in eventsToCheck:
     
     minIndex = max(indexOfFirstCam1, indexOfFirstCam2,indexOfFirstCam3)
     print("Estimated to have " +str(estBubbleCount(minIndex,3))+" bubbles.")
-
+    event_analysis = Streamer("/exp/e961/data/SBC-25-unpacked/"+args.run+ "/"+str(eventNum) +"/event_info.sbc")
+    event_analysis = event_analysis.to_dict()
+    print("Event Live time (sec):\t\t"+str(event_analysis["ev_livetime"][0]/1000))
+    print("Cumulative Live Time (sec):\t"+str(event_analysis["cum_livetime"][0]/1000))
+ 
     ## if you just wanted to grab the reconscution data, then we are done here
 
 
