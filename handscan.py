@@ -4,7 +4,7 @@
 ## pyplot is for manual coordinate finding when handscaning
 ## warninigs is just for the output to look better
 ## atexit is to clear the scratch directory even if the user does an esc sequence or an error happens after untarring
-import sys, os, argparse, tarfile,shutil, warnings, atexit
+import sys, os, csv, argparse, tarfile,shutil, warnings, atexit
 from PIL import Image as img
 from collections import Counter, defaultdict
 import matplotlib.pyplot as plt
@@ -56,7 +56,6 @@ def cleanUp():
 atexit.register(cleanUp)
 
 
-
 # recon and bubble finder getting
 bubble_finder_info = Streamer(reconPath + 'bubble.sbc')
 bubble_finder_info = bubble_finder_info.to_dict()
@@ -68,8 +67,7 @@ reco_info = reco_info.to_dict()
 if args.log:
     print('[Log] Found reco.sbc')
 
-
-
+rows = []
 
 
 eventsToCheck = []
@@ -100,7 +98,7 @@ for eventNum in eventsToCheck:
                     n_minSoFar = n
         if f_minSoFar == 999:
             couldntFindCount +=1
-            print("Could not find a bubble in event " + str(eventNum))
+            #print("Could not find a bubble in event " + str(eventNum))
         return n_minSoFar
 
 
@@ -143,7 +141,7 @@ for eventNum in eventsToCheck:
 
 
     ## for each camera, find the earliest possible bubble, then tell the user the camera, frame, and coordinates
-    print("\n\nFor event "+str(eventNum))
+    #print("\n\nFor event "+str(eventNum))
     indexOfFirstCam1=findEarliest(1)
     indexOfFirstCam2=findEarliest(2)
     indexOfFirstCam3=findEarliest(3)
@@ -151,9 +149,17 @@ for eventNum in eventsToCheck:
     if couldntFindCount == 3:
         print("No bubbles where found for "+ args.run +" during event " + eventNum +" for any camera. Exiting.")
         exit(1)
-    print(f'Cam 1 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam1]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam1]}')
-    print(f'Cam 2 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam2]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam2]}')
-    print(f'Cam 3 earliest guess:\n Pos:\t{bubble_finder_info["pos"][indexOfFirstCam3]}\nEarliest Frame:\t{bubble_finder_info["frame"][indexOfFirstCam3]}')
+    rows.append([args.run,eventNum, -1, 99, np.asarray([-1,-1]), 99, [-1,-1], 99, [-1,-1], -1, -1 ])
+    if not (indexOfFirstCam1 is None):
+        rows[-1][3]=bubble_finder_info["frame"][indexOfFirstCam1]
+        rows[-1][4]=(bubble_finder_info["pos"][indexOfFirstCam1])
+    if not (indexOfFirstCam2 is None):
+        rows[-1][5]=bubble_finder_info["frame"][indexOfFirstCam2]
+        rows[-1][6]=(bubble_finder_info["pos"][indexOfFirstCam2])
+    if not (indexOfFirstCam3 is None):
+        rows[-1][7]=bubble_finder_info["frame"][indexOfFirstCam3]
+        rows[-1][8]=(bubble_finder_info["pos"][indexOfFirstCam3])
+            
     if indexOfFirstCam1 is None:
         indexOfFirstCam1=-1
     if indexOfFirstCam2 is None:
@@ -162,15 +168,24 @@ for eventNum in eventsToCheck:
         indexOfFirstCam3=-1
     
     minIndex = max(indexOfFirstCam1, indexOfFirstCam2,indexOfFirstCam3)
-    print("Estimated to have " +str(estBubbleCount(minIndex,3))+" bubbles.")
+    rows[-1][2]=estBubbleCount(minIndex,3)
+
     event_analysis = Streamer("/exp/e961/data/SBC-25-unpacked/"+args.run+ "/"+str(eventNum) +"/event_info.sbc")
     event_analysis = event_analysis.to_dict()
-    print("Event Live time (sec):\t\t"+str(event_analysis["ev_livetime"][0]/1000))
-    print("Cumulative Live Time (sec):\t"+str(event_analysis["cum_livetime"][0]/1000))
- 
-    ## if you just wanted to grab the reconscution data, then we are done here
+    rows[-1][-2] = event_analysis["pset_lo"][0]
 
+    rows[-1][-1] = event_analysis["ev_livetime"][0]/1000
+header= ["run","event","numBubbles","cam1First","cam1Cord","cam2First","cam2Cord","cam3First","cam3Cord","pset","evlivetime"]
+csvPath = args.run+ ".csv"
+file_exists = os.path.isfile(csvPath)
+with open(csvPath, 'a', newline='\n', encoding='utf-8') as f:
+    writer = csv.writer(f)
+    if not file_exists:
+        writer.writerow(header)
+    for row in rows:
+        writer.writerow(row)
 
+## if you just wanted to grab the reconscution data, then we are done here
 if args.recon:
     exit()
 
