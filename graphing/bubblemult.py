@@ -11,13 +11,16 @@ def nth_col_numbers(path, n, exclude=None, runType=None,  sheet_name=None):
     if exclude is not None:
         rowCount = []
     i=0
-    for row in ws.iter_rows(min_col=(0), max_col=(18), values_only=True):
+    for row in ws.iter_rows(min_row=(1), min_col=(0), max_col=(18), values_only=True):
         if exclude is not None:
             if i in exclude:
                 i+=1
                 continue
             i+=1
-        
+        if runType is not None:
+            if (row[0] is not None) and (row[16] is not None) and (runType not in row[16]):
+                continue
+
         val = row[n]
         if isinstance(val, (int, float)):
             nums.append(val)
@@ -91,17 +94,57 @@ singlesWrong = 0
 multiCount = 0
 multiWrong = 0
 
-excludedCounts = nth_col_numbers(path, 2, eventsToIgnore)
-bubbleFinderCount = nth_col_numbers(path,3,eventsToIgnore)
+
+excludedCounts = nth_col_numbers(path, 2, eventsToIgnore, runType="Coffin B")
+bubbleFinderCount = nth_col_numbers(path,3,eventsToIgnore, runType = "Coffin B")
+
+
+backgroundCount = nth_col_numbers(path, 2, runType="background")
+bubbleFinderBackgroundCount = nth_col_numbers(path, 3, runType="background")
+"""
+ev_lifetime is per event, sum up over all for total?
+cum_livetime should be for the full run, double check
+typical event should be 10s to 100s of seconds, 
+single bubble event rate, mutli bubble event rate
+
+"""
+# added by hand from cum_live time
+cum_livetime = 3366.501 + 3775.325+3365.362
+backgroundSingles = 0
+backgroundMulti = 0
+
+for i in range(0,len(backgroundCount)-1):
+    if backgroundCount[i] == 1:
+        backgroundSingles += 1
+    else:
+        backgroundMulti += 1
+
+print("Background sinlges rate is "+ str(backgroundSingles/cum_livetime) +"/sec")
+print("Background multi rate is "+ str(backgroundMulti/cum_livetime) +"/sec")
+
+
+
+totalCounts = nth_col_numbers(path, 2)
+totalFinderCounts = nth_col_numbers(path, 3)
+
 
 for i in range(0,len(bubbleFinderCount)-1):
     if excludedCounts[i] >= 5:
         excludedBinCounts[4] += 1
     else:
         excludedBinCounts[excludedCounts[i]-1] +=1
-    if bubbleFinderCount[i] != excludedCounts[i]:
-        incorrectCount.append((i,excludedCounts[i],bubbleFinderCount[i]))
-        if excludedCounts[i] == 1:
+
+
+totalSinglesCount = 0
+totalMultiCount = 0
+for i in range(0, len(totalCounts)-1):
+    if totalCounts[i] == 1:
+        totalSinglesCount += 1
+    else:
+        totalMultiCount +=1
+    if totalCounts[i] != totalFinderCounts[i]:
+        incorrectCount.append((i,totalCounts[i],totalFinderCounts[i]))
+        if totalCounts[i] == 1:
             singlesWrong +=1
         else:
             multiWrong +=1
@@ -112,8 +155,8 @@ for i in excludedBinCounts[1:]:
     multiCount += i
 
 
-print("Amount of single bubble events miscounted:\t{}/{}\nAmount of multi-bubble events miscounted:\t{}/{}".format(singlesWrong,singlesCount,multiWrong,multiCount))
-print("Total not ignored events:"+str(singlesCount+multiCount))
+print("Amount of single bubble events miscounted:\t{}/{}\nAmount of multi-bubble events miscounted:\t{}/{}".format(singlesWrong,totalSinglesCount,multiWrong,totalMultiCount))
+#print("Total not ignored events:"+str(singlesCount+multiCount))
 
 
 simCountMin = []
