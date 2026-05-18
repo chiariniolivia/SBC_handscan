@@ -5,7 +5,7 @@ Questions?
 `oac38 at drexel.edu`
 ## Usage:
 ```bash
- handscan.py [-h] [-R] [-l] [-k] -r RUN [-e EVENT] [-i INDICES INDICES INDICES]  [-s SCRATCH] 
+ handscan.py [-h] [-l] [-E] -r RUN [-e EVENT]  [-o OUTPUT.csv]
 ```
 ### Parameters:
 RUN is the run title as found in SBC-25-daqdata.
@@ -18,18 +18,17 @@ SCRATCH is the directory for files to be extracted to while running, which is cl
 ### Flags
 -h prints the help message
 
--R stops the program after getting bubble and reconstruction info
-
 -l enables logging messages which are printed to stdout
 
--k keeps the scratch directory between runs, useful if checking multiple events within the same run
+-E enables running for all available events
+
 
 ## Dependencies
+All are included in the LAr10Ana conda enviorment.
 ```python
-sys, os, argparse, tarfile, shutil, warnings
-matplotlib
+sys, os, csv, argparse,  shutil, warnings, atexit
+collections
 numpy
-PIL
 sbcbinaryformat
 ```
 
