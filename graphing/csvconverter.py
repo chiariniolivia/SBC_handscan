@@ -147,6 +147,17 @@ def read_single_excel(dirpath):
             "Notes": r["Notes"],
         }
     return data
+def sort_key(pair):
+    run, event = pair
+    def to_num(s):
+        try:
+            return int(s)
+        except Exception:
+            try:
+                return float(s)
+            except Exception:
+                return s
+    return (to_num(run), to_num(event))
 
 def merge_and_write(csv_data, excel_data, out_path):
     header = [
@@ -155,7 +166,9 @@ def merge_and_write(csv_data, excel_data, out_path):
         "Actual Cam 2 Formation","Actual Cam 2 Coordinate","Est Cam 2 Formation","Est Cam 2 Coordinate",
         "Actual Cam 3 Formation","Actual Cam 3 Coordinate","Est Cam 3 Formation","Est Cam 3 Coordinate","Notes"
     ]
-    keys = sorted(k for k in csv_data.keys() if k in excel_data)
+    keys = [k for k in csv_data.keys() if k in excel_data]
+    keys.sort(key=sort_key)
+
     with open(out_path, "w", newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
         writer.writerow(header)
