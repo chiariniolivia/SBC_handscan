@@ -210,87 +210,79 @@ for rCirc in (2.0, 1.8):
 
 
 # add recon coords (this is very complicated!!)
+# requires: pip install shapely
+from shapely.geometry import Point, Polygon
+import numpy as np
 
-# Parameters from script
-zOffset = 14.71997 - 15.358
-smallArcCenters = [( 2.725, zOffset), (-2.725, zOffset)]
-smallArcRadii = [2.0, 1.8]
-smallArcThetaRanges = [(0, 1.19367), (np.pi - 1.19367, np.pi)]
-largeArcCenter = (0.0, 7.84 + zOffset)
-largeArcRadii = [9.4, 9.2]
-largeArcThetaRange = (1.19367, np.pi - 1.19367)
+# build 2D polygons in x-z plane from sampled red arc curves
+nSamples = 800
 
-# sampling resolution for arc distance checks
-nSamples = 400
-thickness = 0.2  # distance threshold to consider a point "on" the red geometry
+# sampled outer boundary (large central arc) — note these arcs are in x-z
+thetaOuter = np.linspace(1.19367, np.pi - 1.19367, nSamples)
+outerX = 9.4 * np.cos(thetaOuter)
+outerZ = 9.4 * np.sin(thetaOuter) + (7.84 + zOffset)
+outerPts = list(zip(outerX, outerZ))
 
-# build sampled points along all red arcs (x,y,z)
-arcPoints = []
+# sample inner small arcs and inner hole edges clockwise so they are holes
+# right small arc (positive x)
+thetaRight = np.linspace(0, 1.19367, nSamples)
+rightOuterX = 2.0 * np.cos(thetaRight) + 2.725
+rightOuterZ = 2.0 * np.sin(thetaRight) + zOffset
+rightInnerX = (2.0 - 0.2) * np.cos(thetaRight[::-1]) + 2.725  # reverse for consistent winding
+rightInnerZ = (2.0 - 0.2) * np.sin(thetaRight[::-1]) + zOffset
 
-# small arcs (left and right)
-for centerX, centerZ in smallArcCenters:
-    for r in smallArcRadii:
-        # determine theta range: choose corresponding pair depending on center sign
-        if centerX > 0:
-            thetaRange = smallArcThetaRanges[0]
-        else:
-            thetaRange = smallArcThetaRanges[1]
-        theta = np.linspace(thetaRange[0], thetaRange[1], nSamples)
-        x = r * np.cos(theta) + centerX
-        z = r * np.sin(theta) + centerZ
-        y = np.zeros_like(x)
-        arcPoints.append(np.vstack((x, y, z)).T)
+# left small arc (negative x)
+thetaLeft = np.linspace(np.pi - 1.19367, np.pi, nSamples)
+leftOuterX = 2.0 * np.cos(thetaLeft) - 2.725
+leftOuterZ = 2.0 * np.sin(thetaLeft) + zOffset
+leftInnerX = (2.0 - 0.2) * np.cos(thetaLeft[::-1]) - 2.725
+leftInnerZ = (2.0 - 0.2) * np.sin(thetaLeft[::-1]) + zOffset
 
-# large central arcs
-for r in largeArcRadii:
-    theta = np.linspace(largeArcThetaRange[0], largeArcThetaRange[1], nSamples)
-    x = r * np.cos(theta) + largeArcCenter[0]
-    z = r * np.sin(theta) + largeArcCenter[1]
-    y = np.zeros_like(x)
-    arcPoints.append(np.vstack((x, y, z)).T)
+# Assemble outer polygon ring: follow outer large arc left->right then small arcs appropriately to form closed loop.
+# A reliable approach: combine arcs into a single outer boundary that encloses the volume.
+outerRing = []
+outerRing.extend(outerPts.tolist())
+# connect to right outer small arc end to include its contour
+outerRing.extend(list(zip(rightOuterX, rightOuterZ)))
+# connect across small gap by adding the inner right arc reversed, then left outer, etc., to form a single closed ring.
+# For robustness and clarity, instead build polygon with holes: use large outer ring and small-arc rings as holes.
 
-# concatenate sampled arc points into one (M,3) array
-arcSample = np.vstack(arcPoints)
+outerPolygon = Polygon(outerPts)  # large enclosing polygon
+holeRight = list(zip(rightOuterX, rightOuterZ)) + list(zip(rightInnerX, rightInnerZ))
+holeLeft  = list(zip(leftOuterX, leftOuterZ)) + list(zip(leftInnerX, leftInnerZ))
 
-# flatten reconCoords container as before
+# create polygonWithHoles
+polyWithHoles = Polygon(shell=outerPts, holes=[holeRight, holeLeft])
+
+# classify reconCoords points: project (x,y,z) -> (x,z) and test point-in-polygon
 container = reconCoords[0] if len(reconCoords) == 1 and isinstance(reconCoords[0], (list, tuple)) else reconCoords
-
-insidePts = []
-outsidePts = []
+insideVolume = []
+outsideVolume = []
 
 for item in container:
     try:
-        coord = item[0]            # expected numpy array([x,y,z])
+        coord = item[0]
         x, y, z = float(coord[0]), float(coord[1]), float(coord[2])
     except Exception:
         continue
     if np.isnan(x) or np.isnan(y) or np.isnan(z):
         continue
-    # only consider points inside the plotting scene bounds (xMin,xMax,yMin,yMax,zMin,zMax)
+    # only show points within scene bounds
     if not (xMin <= x <= xMax and yMin <= y <= yMax and zMin <= z <= zMax):
         continue
-    pt = np.array([x, y, z])
-
-    # compute squared distances to sampled arc points for speed
-    diffs = arcSample - pt  # (M,3)
-    d2 = np.einsum('ij,ij->i', diffs, diffs)
-    minDist = np.sqrt(d2.min())
-
-    if minDist <= thickness:
-        insidePts.append((x, y, z))   # near a red arc -> color as red-geometry (inside)
+    pt2 = Point(x, z)
+    if polyWithHoles.contains(pt2):
+        insideVolume.append((x, y, z))
     else:
-        outsidePts.append((x, y, z))  # not near arc -> color as blue (outside red arcs)
+        outsideVolume.append((x, y, z))
 
-# Plot: points near red arcs in red marker, others in blue
-if insidePts:
-    rcIn = np.array(insidePts, dtype=float)
-    ax.scatter(rcIn[:,0], rcIn[:,1], rcIn[:,2], c='r', s=20, marker='o', depthshade=True, label='near red arcs')
-
-if outsidePts:
-    rcOut = np.array(outsidePts, dtype=float)
-    ax.scatter(rcOut[:,0], rcOut[:,1], rcOut[:,2], c='b', s=8, marker='.', depthshade=True, label='not near red arcs')
-
-# optional legend
+# plot classified points
+if insideVolume:
+    rcIn = np.array(insideVolume)
+    ax.scatter(rcIn[:,0], rcIn[:,1], rcIn[:,2], c='r', s=20, label='inside red volume')
+if outsideVolume:
+    rcOut = np.array(outsideVolume)
+    ax.scatter(rcOut[:,0], rcOut[:,1], rcOut[:,2], c='b', s=8, label='outside red volume')
 ax.legend()
 
 
