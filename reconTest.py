@@ -1,12 +1,7 @@
-
-
-
 import sys, os
 import matplotlib.pyplot as plt
 import numpy as np
 from sbcbinaryformat import Streamer, Writer
-
-
 
 # grab files
 if len(sys.argv) != 3:
@@ -120,6 +115,71 @@ for pair in finderRecoPairs:
 
 # 2d to 3d to 2d plot
 
+def plot_camera_subplot(ax, items, cam_id):
+    if not items:
+        ax.axis('off')
+        ax.set_title(f'Camera {cam_id}\n(no data)')
+        return
+    orig = np.array([it[0] for it in items])
+    new  = np.array([it[1] for it in items])
+    deltas = new - orig
+    dists = np.linalg.norm(deltas, axis=1)
+    ax.set_aspect('equal', adjustable='box')
+    ax.grid(True, linestyle='--', alpha=0.4)
+    ax.scatter(orig[:,0], orig[:,1], c='blue', zorder=3)
+    ax.scatter(new[:,0],  new[:,1],  c='red',  zorder=3)
+    max_dist = max(1.0, dists.max())
+    for i, (x0, y0) in enumerate(orig):
+        dx, dy = deltas[i]
+        ax.arrow(x0, y0, dx, dy,
+                 length_includes_head=True,
+                 head_width=0.06 * max_dist,
+                 head_length=0.09 * max_dist,
+                 fc='gray', ec='gray', alpha=0.8)
+    ax.set_title(f'Camera {cam_id}')
+    ax.set_xlabel('')
+    ax.set_ylabel('')
+    ax.invert_yaxis()  # y=0 at top, increasing downward visually
+
+groups = {1: [], 2: [], 3: []} 
+for item in originalNewSets:
+    cam = int(item[2])
+    if cam in groups:
+        groups[cam].append(item)
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+for i, cam_id in enumerate((1, 2, 3)):
+    plot_camera_subplot(axes[i], groups[cam_id], cam_id)
+plt.tight_layout()
+plt.show()
+
+
+## 2d to 3d to 2d histogram
+dists_by_cam = {1: [], 2: [], 3: []}
+for old, new, cam in originalNewSets:
+    old = np.asarray(old, dtype=float)
+    new = np.asarray(new, dtype=float)
+    dist = np.linalg.norm(new - old)
+    dists_by_cam[int(cam)].append(dist)
+all_dists = np.concatenate([np.asarray(dists_by_cam[k]) for k in (1, 2, 3)]) if any(dists_by_cam.values()) else np.array([])
+if all_dists.size:    
+    bins = np.linspace(0, all_dists.max(), 30)
+else:
+    bins = 30
+colors = {1: 'tab:blue', 2: 'tab:orange', 3: 'tab:green'}
+alpha = 0.5
+plt.figure(figsize=(8, 5))
+for cam in (1, 2, 3):
+    plt.hist(dists_by_cam[cam], bins=bins, color=colors[cam], alpha=alpha,
+             label=f'cam {cam}', edgecolor='black', linewidth=0.3)
+plt.xlabel('Distance between coordinates (pixels)')
+plt.ylabel('Count')
+plt.title('Reprojection error')
+plt.legend()
+plt.grid(alpha=0.3)
+plt.tight_layout()
+plt.show()
+
+
 # 3d visualizer
 # modified from event viewer, https://github.com/SBC-Collaboration/LAr10Ana/blob/main/EventDisplay/eventdisplay/tabs/three_d_bubble.py
 
@@ -127,14 +187,7 @@ from math import cos, sin
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 def plot_cylinder_bowl(radius, positive_z, negative_z, ax=None, wire_alpha=0.2, base_f=50):
-    """    Plot an upper cylinder (height = positive_z) and a lower spherical bowl (depth = negative_z).
-    radius, positive_z, negative_z: numeric (can be negative for direction; signs are handled).
-    ax: optional matplotlib 3D Axes. If None, a new figure and axes are created and returned.
-    wire_alpha: alpha for wireframes.
-    base_f: padding applied to axis limits (same role as `f` in original).
-    Returns: (fig, ax) where fig may be None if an existing ax was passed.
-    """
-    # Ensure floats
+    
     r = float(radius)
     pz = float(positive_z)
     nz = float(negative_z)
@@ -145,7 +198,7 @@ def plot_cylinder_bowl(radius, positive_z, negative_z, ax=None, wire_alpha=0.2, 
         ax = fig.add_subplot(111, projection='3d')
     # Upper cylinder (polar coords)
     u = np.linspace(0, 2 * np.pi, 100)
-    # use at least 2 samples in z-direction
+    
     z_samples = max(2, int(max(1.0, abs(pz)) / 2)) if pz != 0 else 2
     z = np.linspace(0, abs(pz), z_samples)
     U, Z = np.meshgrid(u, z)
@@ -153,7 +206,7 @@ def plot_cylinder_bowl(radius, positive_z, negative_z, ax=None, wire_alpha=0.2, 
     cstride = 5
     ax.plot_wireframe(r * np.cos(U), r * np.sin(U), np.sign(nz) * -Z,
                       alpha=wire_alpha, rstride=rstride, cstride=cstride)
-    # Lower bowl (sphere cap) using polar coords
+    
     u = np.linspace(0, 2 * np.pi, 100)
     v_samples = max(2, int(max(1.0, abs(nz)) / 2)) if nz != 0 else 2
     v = np.linspace(np.pi / 2, np.pi, v_samples)
@@ -164,7 +217,7 @@ def plot_cylinder_bowl(radius, positive_z, negative_z, ax=None, wire_alpha=0.2, 
                       r * np.sin(U) * np.sin(V),
                       -nz * np.cos(V),
                       alpha=wire_alpha, rstride=rstride, cstride=cstride)
-    # Set graph limits with padding
+    
     f = float(base_f)
     ax.set_xlim(-r - f, r + f)
     ax.set_ylim(-r - f, r + f)
@@ -172,16 +225,21 @@ def plot_cylinder_bowl(radius, positive_z, negative_z, ax=None, wire_alpha=0.2, 
         ax.set_zlim(-pz + f, nz - f)
     else:
         ax.set_zlim(nz - f, -pz + f)
-    # Label axes
+    
     ax.set_xlabel('X (mm)')
     ax.set_ylabel('Y (mm)')
     ax.set_zlabel('Z (mm)')
     return fig, ax
 
 
-fig, ax = plot_cylinder_bowl(radius=2*25.4,
-                             positive_z=0*25.4,
-                             negative_z=-8*25.4)
+fig, ax = plot_cylinder_bowl(radius=200,
+                             positive_z=600,
+                             negative_z=100)
+for coord in reconCoords:
+    x,y,z = coord[0]
+    # 25.4 is to convert from inches to mm
+    ax.scatter(x*25.4,y*25.4,z*25.4)
+
 plt.show()
 
 
