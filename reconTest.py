@@ -90,7 +90,8 @@ def grabCoords(bubbleInfo,reconInfo):
         for i in range(0,len(reconInfo["ev"])):
             if reconInfo["ev"][i] == evNum:
                 recoCord = reconInfo["coords_3D"][i]
-                recoToReturn.append((recoCord, reconInfo["runid"][i], reconInfo["ev"][i]))  
+                if not np.isnan(recoCord).any() or len(cams) == 0 :
+                    recoToReturn.append((recoCord, reconInfo["runid"][i], reconInfo["ev"][i]))  
         if np.isnan(recoCord).any() or len(cams) == 0:
             continue
 
@@ -113,8 +114,7 @@ reconCoords = []
 for pair in finderRecoPairs:
     setToAdd, recoToAdd = grabCoords(pair[0],pair[1])
     originalNewSets.append(setToAdd)
-    reconCoords.add(recoToAdd)
-
+    reconCoords.append(recoToAdd)
 
 # 2d to 3d to 2d plot
 
@@ -210,14 +210,22 @@ for rCirc in (2.0, 1.8):
 
 
 # add recon coords
+insidePoints = []
+outsidePoints = []
 coords = []
-for item in reconCoords:
+container = reconCoords[0] if len(reconCoords) == 1 and isinstance(reconCoords[0], (list,tuple)) else reconCoords
+for item in container:
     try:
-        coord = item[0]           # get first element ((x,y,z), ...)
-        x, y, z = coord
-        coords.append((x, y, z))
+        coord = item[0]
+        x,y,z = float(coord[0]), float(coord[1]),float(coord[2])
+        
     except Exception:
         continue
+
+    if 
+    coords.append((x,y,z))
+
+
 if coords:
     rc = np.array(coords, dtype=float)
     mask = (rc[:,0] >= xMin) & (rc[:,0] <= xMax) & (rc[:,1] >= yMin) & (rc[:,1] <= yMax) & (rc[:,2] >= zMin) & (rc[:,2] <= zMax)
