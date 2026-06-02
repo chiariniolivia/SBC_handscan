@@ -209,28 +209,89 @@ for rCirc in (2.0, 1.8):
         collectCoords(xCirc[mask], yHelper[mask], zVals[mask])
 
 
-# add recon coords
-insidePoints = []
-outsidePoints = []
-coords = []
-container = reconCoords[0] if len(reconCoords) == 1 and isinstance(reconCoords[0], (list,tuple)) else reconCoords
+# add recon coords (this is very complicated!!)
+
+# Parameters from script
+zOffset = 14.71997 - 15.358
+smallArcCenters = [( 2.725, zOffset), (-2.725, zOffset)]
+smallArcRadii = [2.0, 1.8]
+smallArcThetaRanges = [(0, 1.19367), (np.pi - 1.19367, np.pi)]
+largeArcCenter = (0.0, 7.84 + zOffset)
+largeArcRadii = [9.4, 9.2]
+largeArcThetaRange = (1.19367, np.pi - 1.19367)
+
+# sampling resolution for arc distance checks
+nSamples = 400
+thickness = 0.2  # distance threshold to consider a point "on" the red geometry
+
+# build sampled points along all red arcs (x,y,z)
+arcPoints = []
+
+# small arcs (left and right)
+for centerX, centerZ in smallArcCenters:
+    for r in smallArcRadii:
+        # determine theta range: choose corresponding pair depending on center sign
+        if centerX > 0:
+            thetaRange = smallArcThetaRanges[0]
+        else:
+            thetaRange = smallArcThetaRanges[1]
+        theta = np.linspace(thetaRange[0], thetaRange[1], nSamples)
+        x = r * np.cos(theta) + centerX
+        z = r * np.sin(theta) + centerZ
+        y = np.zeros_like(x)
+        arcPoints.append(np.vstack((x, y, z)).T)
+
+# large central arcs
+for r in largeArcRadii:
+    theta = np.linspace(largeArcThetaRange[0], largeArcThetaRange[1], nSamples)
+    x = r * np.cos(theta) + largeArcCenter[0]
+    z = r * np.sin(theta) + largeArcCenter[1]
+    y = np.zeros_like(x)
+    arcPoints.append(np.vstack((x, y, z)).T)
+
+# concatenate sampled arc points into one (M,3) array
+arcSample = np.vstack(arcPoints)
+
+# flatten reconCoords container as before
+container = reconCoords[0] if len(reconCoords) == 1 and isinstance(reconCoords[0], (list, tuple)) else reconCoords
+
+insidePts = []
+outsidePts = []
+
 for item in container:
     try:
-        coord = item[0]
-        x,y,z = float(coord[0]), float(coord[1]),float(coord[2])
-        
+        coord = item[0]            # expected numpy array([x,y,z])
+        x, y, z = float(coord[0]), float(coord[1]), float(coord[2])
     except Exception:
         continue
+    if np.isnan(x) or np.isnan(y) or np.isnan(z):
+        continue
+    # only consider points inside the plotting scene bounds (xMin,xMax,yMin,yMax,zMin,zMax)
+    if not (xMin <= x <= xMax and yMin <= y <= yMax and zMin <= z <= zMax):
+        continue
+    pt = np.array([x, y, z])
 
-    if 
-    coords.append((x,y,z))
+    # compute squared distances to sampled arc points for speed
+    diffs = arcSample - pt  # (M,3)
+    d2 = np.einsum('ij,ij->i', diffs, diffs)
+    minDist = np.sqrt(d2.min())
 
+    if minDist <= thickness:
+        insidePts.append((x, y, z))   # near a red arc -> color as red-geometry (inside)
+    else:
+        outsidePts.append((x, y, z))  # not near arc -> color as blue (outside red arcs)
 
-if coords:
-    rc = np.array(coords, dtype=float)
-    mask = (rc[:,0] >= xMin) & (rc[:,0] <= xMax) & (rc[:,1] >= yMin) & (rc[:,1] <= yMax) & (rc[:,2] >= zMin) & (rc[:,2] <= zMax)
-    if np.any(mask):
-        ax.scatter(rc[mask,0], rc[mask,1], rc[mask,2], c='b', s=10, depthshade=True)
+# Plot: points near red arcs in red marker, others in blue
+if insidePts:
+    rcIn = np.array(insidePts, dtype=float)
+    ax.scatter(rcIn[:,0], rcIn[:,1], rcIn[:,2], c='r', s=20, marker='o', depthshade=True, label='near red arcs')
+
+if outsidePts:
+    rcOut = np.array(outsidePts, dtype=float)
+    ax.scatter(rcOut[:,0], rcOut[:,1], rcOut[:,2], c='b', s=8, marker='.', depthshade=True, label='not near red arcs')
+
+# optional legend
+ax.legend()
 
 
 # ------- labels, limits, view -------
