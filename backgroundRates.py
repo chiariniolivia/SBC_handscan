@@ -143,7 +143,6 @@ def process_dir_txt(dirpath):
 
 handScannedBackgrounds = process_dir_txt('/exp/e961/data/SBC-25-handscan/')
 
-
 def process_dir_ana(dirpath):
     outList = []
 
@@ -152,17 +151,20 @@ def process_dir_ana(dirpath):
         dirname = item[0]
         if dirname in subdirs:
             fullPath = os.path.join(dirpath, dirname)
-            expData = Streamer(fullPath + 'exposure.sbc').to_dict()
+            expData = Streamer(fullPath + '/exposure.sbc').to_dict()
+            quickCheck = False
             for i in range(len(expData["ev"])):
-                if expData["ev"][i] == item[1] and expData['PT2121_livetime'][i] > 1:
-                    outList.append((item[2], expData['PT2121_livetime'][i]))
+                if int(expData["ev"][i]) == int(item[1]) and float(expData['PT2121_livetime'][i]) > float(1):
+                    outList.append((int(item[2]), float(expData['PT2121_livetime'][i])))
+                    quickCheck = True
+                    break
 
+            if not quickCheck:
+                print("never added")
     return outList
 
-
-
 backgroundPairs = process_dir_ana('/exp/e961/data/SBC-25-recon/v0.1.2/')
-
+print(backgroundPairs)
 backgroundTime = 0
 backgroundSingles = 0
 backgroundMultis  = 0
@@ -174,6 +176,6 @@ for i in range(len(backgroundPairs)):
     backgroundTime += backgroundPairs[i][1]
 
 #convert to per hour
-backgroundTime *= 60*60
+backgroundTime *= 1/(60*60)
 print("Background sinlges rate is "+ str(backgroundSingles/backgroundTime) +"/hr")
 print("Background multi rate is "+ str(backgroundMultis/backgroundTime) +"/hr")
