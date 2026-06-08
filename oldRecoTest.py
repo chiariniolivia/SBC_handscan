@@ -159,6 +159,8 @@ for old, new, cam in originalNewSets:
     old = np.asarray(old, dtype=float)
     new = np.asarray(new, dtype=float)
     dist = np.linalg.norm(new - old)
+    if dist >= 150:
+        continue
     dists_by_cam[int(cam)].append(dist)
 all_dists = np.concatenate([np.asarray(dists_by_cam[k]) for k in (1, 2, 3)]) if any(dists_by_cam.values()) else np.array([])
 if all_dists.size:    
