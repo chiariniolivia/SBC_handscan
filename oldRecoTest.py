@@ -25,9 +25,6 @@ for dirpath, dirnames, filenames in os.walk(root):
             continue
         finderRecoPairs.append((bubbleData,recoData))
 
-print(finderRecoPairs[0][1]["coords_3D"][0])
-
-
 
 # grab reco.py 
 import importlib.util
@@ -87,11 +84,10 @@ def grabCoords(bubbleInfo,reconInfo):
         recoCord = (-1,-1,-1)
         for i in range(0,len(reconInfo["ev"])):
             if reconInfo["ev"][i] == evNum:
-                for j in range(50):
-                    recoCord = reconInfo["coords_3D"][i+j]
-                    if not (np.isnan(recoCord).any() or len(cams) == 0 or recoCord[0] == -999 or recoCord[0] == -1000):
-                        recoToReturn.append((recoCord, reconInfo["runid"][i], reconInfo["ev"][i]))
-                        break
+                recoCord = reconInfo["coords_3D"][i]
+                if not (np.isnan(recoCord).any() or len(cams) == 0 or recoCord[0] == -999 or recoCord[0] == -1000):
+                    recoToReturn.append((recoCord, reconInfo["runid"][i], reconInfo["ev"][i]))
+                    break
             if recoCord[0] != -1:
                 break
         if not (np.isnan(recoCord).any() or len(cams) == 0 or recoCord[0] == -999 or recoCord[0] == -1000):
