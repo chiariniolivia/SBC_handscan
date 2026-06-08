@@ -163,7 +163,7 @@ def process_dir_ana(dirpath):
                 print("never added")
     return outList
 
-backgroundPairs = process_dir_ana('/exp/e961/data/SBC-25-recon/v0.1.2/')
+backgroundPairs = process_dir_ana('/exp/e961/data/SBC-25-recon/dev-output/')
 print(backgroundPairs)
 backgroundTime = 0
 backgroundSingles = 0
