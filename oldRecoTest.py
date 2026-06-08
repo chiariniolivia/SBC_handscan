@@ -25,7 +25,6 @@ for dirpath, dirnames, filenames in os.walk(root):
             continue
         finderRecoPairs.append((bubbleData,recoData))
 
-
 # grab reco.py 
 import importlib.util
 def loadModule(path, moduleName):
@@ -81,16 +80,15 @@ def grabCoords(bubbleInfo,reconInfo):
                         fMin = bubbleInfo["frame"][n]
                         nMin = n 
                         break
+        
         recoCord = (-1,-1,-1)
         for i in range(0,len(reconInfo["ev"])):
             if reconInfo["ev"][i] == evNum:
                 recoCord = reconInfo["coords_3D"][i]
-                if not (np.isnan(recoCord).any() or len(cams) == 0 or recoCord[0] == -999 or recoCord[0] == -1000):
+                if not np.isnan(recoCord).any() or len(cams) == 0 :
                     recoToReturn.append((recoCord, reconInfo["runid"][i], reconInfo["ev"][i]))
                     break
-            if recoCord[0] != -1:
-                break
-        if not (np.isnan(recoCord).any() or len(cams) == 0 or recoCord[0] == -999 or recoCord[0] == -1000):
+        if np.isnan(recoCord).any() or len(cams) == 0:
             continue
     
         for cam in cams:
