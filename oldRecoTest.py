@@ -182,64 +182,100 @@ plt.show()
 
 # 3d visualizer
 # modified from event viewer, https://github.com/SBC-Collaboration/LAr10Ana/blob/main/EventDisplay/eventdisplay/tabs/three_d_bubble.py
+# z vs x (or y)
+plt.vlines(4.525,-8.75,14.71997 - 15.358,color='r')
+plt.vlines(-4.525,-8.75,14.71997 - 15.358,color='r')
+plt.vlines(4.725,-8.75,14.71997 - 15.358,color='r')
+plt.vlines(-4.725,-8.75,14.71997 - 15.358,color='r')
 
-from math import cos, sin
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-def plot_cylinder_bowl(radius, positive_z, negative_z, ax=None, wire_alpha=0.2, base_f=50):
-    
-    r = float(radius)
-    pz = float(positive_z)
-    nz = float(negative_z)
-    # Create axes if not provided
-    fig = None    
-    if ax is None:
-        fig = plt.figure(figsize=(8, 6))
-        ax = fig.add_subplot(111, projection='3d')
-    # Upper cylinder (polar coords)
-    u = np.linspace(0, 2 * np.pi, 100)
-    
-    z_samples = max(2, int(max(1.0, abs(pz)) / 2)) if pz != 0 else 2
-    z = np.linspace(0, abs(pz), z_samples)
-    U, Z = np.meshgrid(u, z)
-    rstride = 1 + int((abs(pz) + abs(nz)) / 2 / 20)
-    cstride = 5
-    ax.plot_wireframe(r * np.cos(U), r * np.sin(U), np.sign(nz) * -Z,
-                      alpha=wire_alpha, rstride=rstride, cstride=cstride)
-    
-    u = np.linspace(0, 2 * np.pi, 100)
-    v_samples = max(2, int(max(1.0, abs(nz)) / 2)) if nz != 0 else 2
-    v = np.linspace(np.pi / 2, np.pi, v_samples)
-    U, V = np.meshgrid(u, v)
-    rstride = 1 + int((abs(pz) + abs(nz)) / 2 / 40)
-    cstride = 5
-    ax.plot_wireframe(r * np.cos(U) * np.sin(V),
-                      r * np.sin(U) * np.sin(V),
-                      -nz * np.cos(V),
-                      alpha=wire_alpha, rstride=rstride, cstride=cstride)
-    
-    f = float(base_f)
-    ax.set_xlim(-r - f, r + f)
-    ax.set_ylim(-r - f, r + f)
-    if np.sign(nz) == 1:
-        ax.set_zlim(-pz + f, nz - f)
-    else:
-        ax.set_zlim(nz - f, -pz + f)
-    
-    ax.set_xlabel('X (mm)')
-    ax.set_ylabel('Y (mm)')
-    ax.set_zlabel('Z (mm)')
-    return fig, ax
+theta = np.linspace(0, 1.19367, 400)
+rcirc = 2
+xcirc = rcirc * np.cos(theta) + 2.725
+ycirc = rcirc * np.sin(theta) + 14.71997 - 15.358
+plt.plot(xcirc, ycirc, c='r')
+theta = np.linspace(0, 1.19367, 400)
+rcirc = 2 - 0.2
+xcirc = rcirc * np.cos(theta) + 2.725
+ycirc = rcirc * np.sin(theta) + 14.71997 - 15.358
+plt.plot(xcirc, ycirc, c='r')
+theta = np.linspace(np.pi - 1.19367, np.pi, 400)
+rcirc = 2
+xcirc = rcirc * np.cos(theta) - 2.725
+ycirc = rcirc * np.sin(theta) + 14.71997 - 15.358
+plt.plot(xcirc, ycirc, c='r')
+theta = np.linspace(np.pi - 1.19367, np.pi, 400)
+rcirc = 2 - 0.2
+xcirc = rcirc * np.cos(theta) - 2.725
+ycirc = rcirc * np.sin(theta) + 14.71997 - 15.358
+plt.plot(xcirc, ycirc, c='r')
+theta = np.linspace(1.19367, np.pi-1.19367, 400)
+rcirc = 9.4
+xcirc = rcirc * np.cos(theta)
+ycirc = rcirc * np.sin(theta) + 7.84 - 15.358
+plt.plot(xcirc, ycirc, c='r')
+theta = np.linspace(1.19367, np.pi-1.19367, 400)
+rcirc = 9.4 - 0.2
+xcirc = rcirc * np.cos(theta)
+ycirc = rcirc * np.sin(theta) + 7.84 - 15.358
+plt.plot(xcirc, ycirc,c='r')
 
-
-fig, ax = plot_cylinder_bowl(radius=200,
-                             positive_z=600,
-                             negative_z=100)
 for coord in reconCoords:
-    x,y,z = coord[0]
-    # 25.4 is to convert from inches to mm
-    ax.scatter(x*25.4,y*25.4,z*25.4)
+    plt.scatter( coord[0][0], coord[0][2])
 
+
+plt.xlabel("x")
+plt.ylabel("z")
+plt.title("z vs x")
+plt.grid(True)
+plt.legend()
 plt.show()
 
 
+
+
+# y vs x
+
+theta = np.linspace(0, 2*np.pi, 400)
+plt.plot(4.525*np.cos(theta), 4.525*np.sin(theta), c='r')
+plt.plot((4.525+0.2)*np.cos(theta), (4.525+0.2)*np.sin(theta), c='r')
+for coord in reconCoords:
+    plt.scatter( coord[0][0], coord[0][1])
+
+
+plt.xlabel("x")
+plt.ylabel("y")
+plt.title("y vs x")
+plt.xlim(-5,5)
+plt.ylim(-5,5)
+plt.grid(True)
+plt.legend()
+plt.show()
+
+
+
+
+# r2 vs z
+
+plt.vlines(4.525**2,-8.75,14.71997 - 15.358,color='r')
+plt.vlines(4.725**2,ymin=-8.75,ymax=14.71997 - 15.358,color='r')
+
+theta = np.linspace(0, 1.19367, 400)
+rcirc = 2
+plt.plot((rcirc*np.cos(theta)+2.725)**2,
+         rcirc*np.sin(theta)+14.71997-15.358,c='r')
+
+rcirc = 1.8
+plt.plot((rcirc*np.cos(theta)+2.725)**2,
+         rcirc*np.sin(theta)+14.71997-15.358,c='r')
+
+for coord in reconCoords:
+    plt.scatter( (coord[0][0]**2 + coord[0][1]**2), coord[0][2])
+
+
+
+plt.xlabel("r2")
+plt.ylabel("z")
+plt.title("r2 vs z")
+plt.grid(True)
+plt.legend()
+plt.show()
