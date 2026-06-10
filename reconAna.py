@@ -179,7 +179,102 @@ plt.tight_layout()
 plt.show()
 
 
+plt.vlines(4.525,-8.75,14.71997 - 15.358,color='r')
+plt.vlines(-4.525,-8.75,14.71997 - 15.358,color='r')
+plt.vlines(4.725,-8.75,14.71997 - 15.358,color='r')
+plt.vlines(-4.725,-8.75,14.71997 - 15.358,color='r')
 
+theta = np.linspace(0, 1.19367, 400)
+rcirc = 2
+xcirc = rcirc * np.cos(theta) + 2.725
+ycirc = rcirc * np.sin(theta) + 14.71997 - 15.358
+plt.plot(xcirc, ycirc, c='r')
+theta = np.linspace(0, 1.19367, 400)
+rcirc = 2 - 0.2
+xcirc = rcirc * np.cos(theta) + 2.725
+ycirc = rcirc * np.sin(theta) + 14.71997 - 15.358
+plt.plot(xcirc, ycirc, c='r')
+theta = np.linspace(np.pi - 1.19367, np.pi, 400)
+rcirc = 2
+xcirc = rcirc * np.cos(theta) - 2.725
+ycirc = rcirc * np.sin(theta) + 14.71997 - 15.358
+plt.plot(xcirc, ycirc, c='r')
+theta = np.linspace(np.pi - 1.19367, np.pi, 400)
+rcirc = 2 - 0.2
+xcirc = rcirc * np.cos(theta) - 2.725
+ycirc = rcirc * np.sin(theta) + 14.71997 - 15.358
+plt.plot(xcirc, ycirc, c='r')
+theta = np.linspace(1.19367, np.pi-1.19367, 400)
+rcirc = 9.4
+xcirc = rcirc * np.cos(theta)
+ycirc = rcirc * np.sin(theta) + 7.84 - 15.358
+plt.plot(xcirc, ycirc, c='r')
+theta = np.linspace(1.19367, np.pi-1.19367, 400)
+rcirc = 9.4 - 0.2
+xcirc = rcirc * np.cos(theta)
+ycirc = rcirc * np.sin(theta) + 7.84 - 15.358
+plt.plot(xcirc, ycirc,c='r')
+
+for coord in reconCoords:
+    plt.scatter( coord[0][0], coord[0][2])
+
+
+plt.xlabel("x")
+plt.ylabel("z")
+plt.title("z vs x")
+plt.grid(True)
+plt.legend()
+plt.show()
+
+
+
+
+# y vs x
+
+theta = np.linspace(0, 2*np.pi, 400)
+plt.plot(4.525*np.cos(theta), 4.525*np.sin(theta), c='r')
+plt.plot((4.525+0.2)*np.cos(theta), (4.525+0.2)*np.sin(theta), c='r')
+for coord in reconCoords:
+    plt.scatter( coord[0][0], coord[0][1])
+
+
+plt.xlabel("x")
+plt.ylabel("y")
+plt.title("y vs x")
+plt.xlim(-5,5)
+plt.ylim(-5,5)
+plt.grid(True)
+plt.legend()
+plt.show()
+
+
+
+
+# r2 vs z
+
+plt.vlines(4.525**2,-8.75,14.71997 - 15.358,color='r')
+plt.vlines(4.725**2,ymin=-8.75,ymax=14.71997 - 15.358,color='r')
+
+theta = np.linspace(0, 1.19367, 400)
+rcirc = 2
+plt.plot((rcirc*np.cos(theta)+2.725)**2,
+         rcirc*np.sin(theta)+14.71997-15.358,c='r')
+
+rcirc = 1.8
+plt.plot((rcirc*np.cos(theta)+2.725)**2,
+         rcirc*np.sin(theta)+14.71997-15.358,c='r')
+
+for coord in reconCoords:
+    plt.scatter( (coord[0][0]**2 + coord[0][1]**2), coord[0][2])
+
+
+
+plt.xlabel("r2")
+plt.ylabel("z")
+plt.title("r2 vs z")
+plt.grid(True)
+plt.legend()
+plt.show()
 
 
 
