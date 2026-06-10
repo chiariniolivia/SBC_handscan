@@ -106,26 +106,33 @@ originalNewSets = []
 reconCoords = []
 for pair in finderRecoPairs:
     setsToAdd, recosToAdd = grabCoords(pair[0],pair[1])
+    evSet = []
+    recoSet = []
     for setToAdd in setsToAdd:
-        originalNewSets.append(setToAdd)
+        evSet.append(setToAdd)
     for recoToAdd in recosToAdd:
         #print(recoToAdd)
-        reconCoords.append(recoToAdd)
+        recoSet.append(recoToAdd)
 
 # 2d to 3d to 2d plot
+import colorsys
+import hashlib
 
-def plot_camera_subplot(ax, items, cam_id):
+def plot_camera_subplot(ax, items, cam_id, col):
     if not items:
         ax.axis('off')
         ax.set_title(f'Camera {cam_id}\n(no data)')
         return
+    h = hashlib.md5(str(i).encode()).digest()
+    hue = ((h[0] << 8) | h[1]) / 65535.0
+    color = colorsys.hsv_to_rgb(hue, s, v)
     orig = np.array([it[0] for it in items])
     new  = np.array([it[1] for it in items])
     deltas = new - orig
     dists = np.linalg.norm(deltas, axis=1)
     ax.set_aspect('equal', adjustable='box')
     ax.grid(True, linestyle='--', alpha=0.4)
-    ax.scatter(orig[:,0], orig[:,1], c='blue', zorder=3)
+    ax.scatter(orig[:,0], orig[:,1], c=color, zorder=3)
     ax.scatter(new[:,0],  new[:,1],  c='red',  zorder=3)
     max_dist = max(1.0, dists.max())
     for i, (x0, y0) in enumerate(orig):
@@ -141,10 +148,13 @@ def plot_camera_subplot(ax, items, cam_id):
     ax.invert_yaxis()  # y=0 at top, increasing downward visually
 
 groups = {1: [], 2: [], 3: []} 
-for item in originalNewSets:
-    cam = int(item[2])
-    if cam in groups:
-        groups[cam].append(item)
+int i = 0 
+for i in range(len(originalNewSets)):
+    for item in originalNewSets[i]: 
+        cam = int(item[2])
+        if cam in groups:
+            groups[cam].append((item, i))
+
 fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 for i, cam_id in enumerate((1, 2, 3)):
     plot_camera_subplot(axes[i], groups[cam_id], cam_id)
