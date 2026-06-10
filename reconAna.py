@@ -7,6 +7,7 @@ from sbcbinaryformat import Streamer, Writer
 if len(sys.argv) != 3:
     print("Usage: reconTest.py <path to reco version> <path to output> ", file=sys.stderr)        
     sys.exit(2)
+recover = sys.argv[1]
 root = sys.argv[2]
 if not os.path.exists(root):
     print(f"Path does not exist: {root}", file=sys.stderr)
@@ -25,9 +26,6 @@ for dirpath, dirnames, filenames in os.walk(root):
             continue
         finderRecoPairs.append((bubbleData,recoData))
 
-print(finderRecoPairs[0][1]["coords_3D"][0])
-
-
 
 # grab reco.py 
 import importlib.util
@@ -38,8 +36,9 @@ def loadModule(path, moduleName):
     spec = importlib.util.spec_from_file_location(moduleName, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module
-
+    func = getattr(module,moduleName)
+    return func
+getProjMat = loadModule(recover, "getProjMat")
 
 # 2d to 3d to 2d math
 
@@ -51,13 +50,9 @@ def backTo2d(P,x):
 
 
 projMatricies = []
-P1 = np.array([[-1.05302109e+02, -7.02444185e+02, -3.34577970e+02,  5.72535995e+03], [-5.51213766e+02,  2.58404210e+01, -3.45420423e+02,  3.46877200e+03], [ 5.46200003e-02, -3.31725499e-01, -9.41793422e-01,  8.93247437e+00]])
-P2 = np.array([[ 6.24551374e+02,  2.05426176e+02, -4.20327029e+02,  6.08648299e+03],[ 2.38142395e+02, -5.16479247e+02, -3.98154885e+02,  3.57897785e+03], [ 1.75014306e-01,  8.21425255e-02, -9.81133323e-01,  8.45879059e+00]])
-P3 = np.array([[-4.46470566e+02,  4.77173422e+02, -4.42541834e+02,  5.80637791e+03], [ 3.67166284e+02,  4.75216795e+02, -4.43358757e+02,  3.38952193e+03], [-9.35610736e-02,  1.48157021e-01, -9.84528223e-01,  7.62754209e+00]])
-projMatricies.append(P1)
-projMatricies.append(P2)
-projMatricies.append(P3)
-
+projMatricies.append(getProjMat(1))
+projMatricies.append(getProjMat(2))
+projMatricies.append(getProjMat(3))
 def grabCoords(bubbleInfo,reconInfo):
     eventsToCheck = []
     for evNum in bubbleInfo["ev"]:
@@ -66,47 +61,44 @@ def grabCoords(bubbleInfo,reconInfo):
     setsToReturn = []
     recoToReturn = []
     for evNum in eventsToCheck:
-        # find first frame with 2 cameras defined. if three, use all 3.
-        cams = []
-        fMin = 999
-        nMin = 999
-        for n in range(0,len(bubbleInfo["frame"])):
-                if (bubbleInfo["frame"][n] <= fMin) and (int(bubbleInfo["ev"][n]) == int(evNum)):
-                    # check if one or more elements in the list has the same frame and ev value but different cam value, if so set the minimum frame to that frame
-                    camsForFrame = []
-                    for m in range(len(bubbleInfo["frame"])):
-                        if bubbleInfo["ev"][m] == evNum and bubbleInfo["frame"][m] == bubbleInfo["frame"][n]:
-                            camVal = bubbleInfo["cam"][m]
-                            if not camVal in camsForFrame:
-                                camsForFrame.append(camVal)
-                    if len(camsForFrame) >= 2:
-                        cams = camsForFrame
-                        fMin = bubbleInfo["frame"][n]
-                        nMin = n 
+        for f in range(50):
+            # reco should tell us if the frame is good or not    
+            curReco = None
+            for i in range(0,len(reconInfo["ev"])):
+                if (reconInfo["ev"][i] == evNum):
+                    recoCord = reconInfo["coords_3D"][i]
+                    print(recoCord)
+                    if not (np.isnan(recoCord).any() or recoCord[0] == -999 or recoCord[0] == -1000):
+                        curReco = (recoCord)
                         break
-        recoCord = (-1,-1,-1)
-        for i in range(0,len(reconInfo["ev"])):
-            if reconInfo["ev"][i] == evNum:
-                for j in range(50):
-                    recoCord = reconInfo["coords_3D"][i+j]
-                    if not (np.isnan(recoCord).any() or len(cams) == 0 or recoCord[0] == -999 or recoCord[0] == -1000):
-                        recoToReturn.append((recoCord, reconInfo["runid"][i], reconInfo["ev"][i]))
-                        break
-            if recoCord[0] != -1:
-                break
-        if not (np.isnan(recoCord).any() or len(cams) == 0 or recoCord[0] == -999 or recoCord[0] == -1000):
-            continue
-    
-        for cam in cams:
-            original = (np.nan,np.nan)
-            for n in range(0,len(bubbleInfo["frame"])):
-                if (bubbleInfo["frame"][n] <= fMin) and (int(bubbleInfo["ev"][n]) == int(evNum)) and bubbleInfo["cam"][n] == cam:
-                    original= bubbleInfo["pos"][n]
-                    break
-            if np.isnan(original).any():
+            # if there wasnt a good value, we can just move to the next frame
+            if curReco is None:
                 continue
-            reproj=backTo2d(projMatricies[cam-1],recoCord)
-            setsToReturn.append((original,reproj,cam))
+            
+            # list of cameras that have bubbles in this frame
+            camsForFrame = []
+            # list of indicies of enteries for bubbles in this frame
+            iList = []
+            # list of bubble finder coordinate- camera pairs
+            oList = []
+            for n in range(len(bubbleInfo["frame"])):
+                if (int(bubbleInfo["ev"][n]) == int(evNum)) and (int(bubbleInfo["frame"][n] == f)):
+                    for m in range(len(bubbleInfo["frame"])):
+                        if (int(bubbleInfo["ev"][m]) == int(evNum)) and (int(bubbleInfo["frame"][m]) == int(bubbleInfo["frame"][n])):
+                            camVal = bubbleInfo["cam"][m]
+                            if (not camVal in camsForFrame) and (m not in iList) :
+                                camsForFrame.append(camVal)
+                                iList.append(m)
+            # if not more than one cam, who cares move on.
+            if len(camsForFrame) < 2:
+                continue
+            for i in iList:
+                oList.append((bubbleInfo["pos"][i], bubbleInfo["cam"][i]))
+
+            for o in oList:
+                setsToReturn.append((o[0], backTo2d(projMatricies[o[1]-1],curReco), o[1]))
+            recoToReturn.append((curReco, "bla", "bla"))
+
     return setsToReturn, recoToReturn
 
 # format is (original cam coordinate, reprojected cam coordinate, cam number)
@@ -117,6 +109,7 @@ for pair in finderRecoPairs:
     for setToAdd in setsToAdd:
         originalNewSets.append(setToAdd)
     for recoToAdd in recosToAdd:
+        print(recoToAdd)
         reconCoords.append(recoToAdd)
 
 # 2d to 3d to 2d plot
@@ -185,7 +178,9 @@ plt.grid(alpha=0.3)
 plt.tight_layout()
 plt.show()
 
+exit()
 
+# this is just so slow and also the geometry is wrong it isnt worth looking at
 # 3d visualizer
 # modified from event viewer, https://github.com/SBC-Collaboration/LAr10Ana/blob/main/EventDisplay/eventdisplay/tabs/three_d_bubble.py
 
