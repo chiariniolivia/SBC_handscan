@@ -67,8 +67,8 @@ def grabCoords(bubbleInfo,reconInfo):
             for i in range(0,len(reconInfo["ev"])):
                 if (reconInfo["ev"][i] == evNum):
                     recoCord = reconInfo["coords_3D"][i]
-                    print(recoCord)
-                    if not (np.isnan(recoCord).any() or recoCord[0] == -999 or recoCord[0] == -1000):
+                    #print(recoCord)
+                    if not (np.isnan(recoCord).any() or recoCord[0] <= -999):
                         curReco = (recoCord)
                         break
             # if there wasnt a good value, we can just move to the next frame
@@ -109,7 +109,7 @@ for pair in finderRecoPairs:
     for setToAdd in setsToAdd:
         originalNewSets.append(setToAdd)
     for recoToAdd in recosToAdd:
-        print(recoToAdd)
+        #print(recoToAdd)
         reconCoords.append(recoToAdd)
 
 # 2d to 3d to 2d plot
@@ -132,8 +132,8 @@ def plot_camera_subplot(ax, items, cam_id):
         dx, dy = deltas[i]
         ax.arrow(x0, y0, dx, dy,
                  length_includes_head=True,
-                 head_width=0.06 * max_dist,
-                 head_length=0.09 * max_dist,
+                 head_width=0.006 * max_dist,
+                 head_length=0.009 * max_dist,
                  fc='gray', ec='gray', alpha=0.8)
     ax.set_title(f'Camera {cam_id}')
     ax.set_xlabel('')
@@ -177,6 +177,13 @@ plt.legend()
 plt.grid(alpha=0.3)
 plt.tight_layout()
 plt.show()
+
+
+
+
+
+
+
 
 exit()
 
