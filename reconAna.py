@@ -117,17 +117,24 @@ for pair in finderRecoPairs:
 # 2d to 3d to 2d plot
 import colorsys
 import hashlib
+def color_for_index(i):
+    S = 0.65
+    V = 0.9
+    h = hashlib.md5(str(i).encode()).digest()
+    hue = ((h[0] << 8) | h[1]) / 65535.0
+    return colorsys.hsv_to_rgb(hue, s, v)
 
 def plot_camera_subplot(ax, items, cam_id, col):
     if not items:
         ax.axis('off')
         ax.set_title(f'Camera {cam_id}\n(no data)')
         return
-    h = hashlib.md5(str(i).encode()).digest()
-    hue = ((h[0] << 8) | h[1]) / 65535.0
-    color = colorsys.hsv_to_rgb(hue, s, v)
+
+
     orig = np.array([it[0] for it in items])
     new  = np.array([it[1] for it in items])
+    indices = [it[1] for it in items]
+    colors = np.array([color_for_index(idx) for idx in indices]) 
     deltas = new - orig
     dists = np.linalg.norm(deltas, axis=1)
     ax.set_aspect('equal', adjustable='box')
@@ -148,7 +155,7 @@ def plot_camera_subplot(ax, items, cam_id, col):
     ax.invert_yaxis()  # y=0 at top, increasing downward visually
 
 groups = {1: [], 2: [], 3: []} 
-int i = 0 
+i = 0 
 for i in range(len(originalNewSets)):
     for item in originalNewSets[i]: 
         cam = int(item[2])
