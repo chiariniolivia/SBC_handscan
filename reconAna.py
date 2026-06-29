@@ -26,7 +26,6 @@ for dirpath, dirnames, filenames in os.walk(root):
             continue
         finderRecoPairs.append((bubbleData,recoData))
 
-
 # grab reco.py 
 import importlib.util
 def loadModule(path, moduleName):
@@ -59,20 +58,27 @@ def grabCoords(bubbleInfo,reconInfo):
         if evNum in reconInfo["ev"] and not evNum in eventsToCheck:
             eventsToCheck.append(evNum)
     setsToReturn = []
+    newFrames = [f for row in reconInfo["frame"] for f in row]
+    
     recoToReturn = []
     for evNum in eventsToCheck:
-        for f in range(50):
+        for f  in range(50):
             # reco should tell us if the frame is good or not    
             curReco = None
+            done = False
             for i in range(0,len(reconInfo["ev"])):
-                if (reconInfo["ev"][i] == evNum):
-                    recoCord = reconInfo["coords_3D"][i]
-                    #print(recoCord)
-                    if not (np.isnan(recoCord).any() or recoCord[0] <= -999):
-                        curReco = (recoCord)
-                        break
+                if reconInfo["ev"][i] == evNum:
+                    for j in range(len(reconInfo["frame"][i])):
+                        if reconInfo["frame"][i][j] == f and i+j <len(reconInfo["coords_3D"]):
+                            recoCord = reconInfo["coords_3D"][i+j]
+                            if not (np.isnan(recoCord).any() or recoCord[0] <= -999):
+                                curReco = (recoCord)
+                                done = True
+                                break
+                if done:
+                    break
             # if there wasnt a good value, we can just move to the next frame
-            if curReco is None:
+            if curReco is None or np.isnan(curReco).any():
                 continue
             
             # list of cameras that have bubbles in this frame
@@ -86,96 +92,110 @@ def grabCoords(bubbleInfo,reconInfo):
                     for m in range(len(bubbleInfo["frame"])):
                         if (int(bubbleInfo["ev"][m]) == int(evNum)) and (int(bubbleInfo["frame"][m]) == int(bubbleInfo["frame"][n])):
                             camVal = bubbleInfo["cam"][m]
-                            if (not camVal in camsForFrame) and (m not in iList) :
-                                camsForFrame.append(camVal)
+                            checkList = {t[0] for t in camsForFrame}
+                            if (not camVal in checkList) and (m not in iList) :
+                                camsForFrame.append((camVal,evNum))
                                 iList.append(m)
             # if not more than one cam, who cares move on.
             if len(camsForFrame) < 2:
                 continue
             for i in iList:
-                oList.append((bubbleInfo["pos"][i], bubbleInfo["cam"][i]))
+                oList.append((bubbleInfo["pos"][i], bubbleInfo["cam"][i], bubbleInfo["ev"][i]))
 
             for o in oList:
-                setsToReturn.append((o[0], backTo2d(projMatricies[o[1]-1],curReco), o[1]))
-            recoToReturn.append((curReco, "bla", "bla"))
-
+                setsToReturn.append((o[0], backTo2d(projMatricies[o[1]-1],curReco), o[1], o[2]))
+            recoToReturn.append((curReco, evNum))
     return setsToReturn, recoToReturn
 
 # format is (original cam coordinate, reprojected cam coordinate, cam number)
 originalNewSets = []
 reconCoords = []
 for pair in finderRecoPairs:
+    
     setsToAdd, recosToAdd = grabCoords(pair[0],pair[1])
     evSet = []
     recoSet = []
     for setToAdd in setsToAdd:
         evSet.append(setToAdd)
     for recoToAdd in recosToAdd:
-        #print(recoToAdd)
         recoSet.append(recoToAdd)
-
+    originalNewSets.append(evSet)
+    reconCoords.append(recoSet)
 # 2d to 3d to 2d plot
 import colorsys
 import hashlib
+import random
 def color_for_index(i):
-    S = 0.65
-    V = 0.9
+    SMIN = 0.4
+    SMAX = 0.9
+    VMIN = 0.7
+    VMAX = 1.0
     h = hashlib.md5(str(i).encode()).digest()
     hue = ((h[0] << 8) | h[1]) / 65535.0
-    return colorsys.hsv_to_rgb(hue, s, v)
+    s_raw = ((h[2] <<8) | h[3])/ 65535.0
+    v_raw = ((h[4] <<8) | h[5])/ 65535.0
+    s = SMIN + s_raw * (SMAX - SMIN)
+    v = VMIN + v_raw * (VMAX - VMIN)
+    r,g,b =  colorsys.hsv_to_rgb(hue, s, v)
+    ran1 = random.Random(i).random()
+    ran2 = random.Random(i+100).random()
+    ran3 = random.Random(i+101).random()
+    return (ran1,ran2,ran3)
 
-def plot_camera_subplot(ax, items, cam_id, col):
+def plot_camera_subplot(ax, items, cam_id):
     if not items:
         ax.axis('off')
         ax.set_title(f'Camera {cam_id}\n(no data)')
         return
 
-
     orig = np.array([it[0] for it in items])
     new  = np.array([it[1] for it in items])
-    indices = [it[1] for it in items]
-    colors = np.array([color_for_index(idx) for idx in indices]) 
+    indices = [int(it[3]) for it in items]
+    colors = np.array([color_for_index(idx) for idx in indices])
     deltas = new - orig
     dists = np.linalg.norm(deltas, axis=1)
+    maxDist = 350
+    outlierMask = (dists <= maxDist)
+    
     ax.set_aspect('equal', adjustable='box')
     ax.grid(True, linestyle='--', alpha=0.4)
-    ax.scatter(orig[:,0], orig[:,1], c=color, zorder=3)
-    ax.scatter(new[:,0],  new[:,1],  c='red',  zorder=3)
+    ax.scatter(orig[outlierMask,0], orig[outlierMask,1], c=colors[outlierMask], zorder=3)
+    ax.scatter(new[outlierMask,0],  new[outlierMask,1],  c='red',  zorder=3)
     max_dist = max(1.0, dists.max())
-    for i, (x0, y0) in enumerate(orig):
+    for i in np.nonzero(outlierMask)[0]:
+        x0, y0 = orig[i]
         dx, dy = deltas[i]
         ax.arrow(x0, y0, dx, dy,
                  length_includes_head=True,
-                 head_width=0.006 * max_dist,
-                 head_length=0.009 * max_dist,
                  fc='gray', ec='gray', alpha=0.8)
     ax.set_title(f'Camera {cam_id}')
-    ax.set_xlabel('')
-    ax.set_ylabel('')
-    ax.invert_yaxis()  # y=0 at top, increasing downward visually
+    ax.set_xlabel('x (pixels)')
+    ax.set_ylabel('y (pixels)')
+    ax.invert_yaxis()
 
-groups = {1: [], 2: [], 3: []} 
-i = 0 
-for i in range(len(originalNewSets)):
-    for item in originalNewSets[i]: 
+groups = {1: [], 2: [], 3: []}
+for curSet in originalNewSets:
+    for item in curSet:
         cam = int(item[2])
         if cam in groups:
-            groups[cam].append((item, i))
+            groups[cam].append((item))
 
 fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-for i, cam_id in enumerate((1, 2, 3)):
+for i, cam_id in enumerate((1, 2, 3)): 
     plot_camera_subplot(axes[i], groups[cam_id], cam_id)
 plt.tight_layout()
+plt.savefig("camVisual.png")
 plt.show()
-
 
 ## 2d to 3d to 2d histogram
 dists_by_cam = {1: [], 2: [], 3: []}
-for old, new, cam in originalNewSets:
-    old = np.asarray(old, dtype=float)
-    new = np.asarray(new, dtype=float)
-    dist = np.linalg.norm(new - old)
-    dists_by_cam[int(cam)].append(dist)
+for curSet in originalNewSets:
+    for old, new, cam, ev in curSet:
+        old = np.asarray(old, dtype=float)
+        new = np.asarray(new, dtype=float)
+        dist = np.linalg.norm(new - old)
+        if dist <= 150:
+            dists_by_cam[int(cam)].append(dist)
 all_dists = np.concatenate([np.asarray(dists_by_cam[k]) for k in (1, 2, 3)]) if any(dists_by_cam.values()) else np.array([])
 if all_dists.size:    
     bins = np.linspace(0, all_dists.max(), 30)
@@ -193,6 +213,7 @@ plt.title('Reprojection error')
 plt.legend()
 plt.grid(alpha=0.3)
 plt.tight_layout()
+plt.savefig("camHist.png")
 plt.show()
 
 
@@ -232,15 +253,19 @@ xcirc = rcirc * np.cos(theta)
 ycirc = rcirc * np.sin(theta) + 7.84 - 15.358
 plt.plot(xcirc, ycirc,c='r')
 
-for coord in reconCoords:
-    plt.scatter( coord[0][0], coord[0][2])
 
 
-plt.xlabel("x")
-plt.ylabel("z")
+for curEv in reconCoords:
+    for coord in curEv:
+        plt.scatter(coord[0][0], coord[0][2], c=color_for_index(int(coord[1])))
+
+
+plt.xlabel("x (cm)")
+plt.ylabel("z (cm)")
 plt.title("z vs x")
 plt.grid(True)
 plt.legend()
+plt.savefig("recoZvX.png")
 plt.show()
 
 
@@ -251,17 +276,19 @@ plt.show()
 theta = np.linspace(0, 2*np.pi, 400)
 plt.plot(4.525*np.cos(theta), 4.525*np.sin(theta), c='r')
 plt.plot((4.525+0.2)*np.cos(theta), (4.525+0.2)*np.sin(theta), c='r')
-for coord in reconCoords:
-    plt.scatter( coord[0][0], coord[0][1])
+for curEv in reconCoords:
+    for coord in curEv:
+        plt.scatter( coord[0][0], coord[0][1])
 
 
-plt.xlabel("x")
-plt.ylabel("y")
+plt.xlabel("x (cm)")
+plt.ylabel("y (cm)")
 plt.title("y vs x")
 plt.xlim(-5,5)
 plt.ylim(-5,5)
 plt.grid(True)
 plt.legend()
+plt.savefig("recoYxX.png")
 plt.show()
 
 
@@ -281,23 +308,24 @@ rcirc = 1.8
 plt.plot((rcirc*np.cos(theta)+2.725)**2,
          rcirc*np.sin(theta)+14.71997-15.358,c='r')
 
-for coord in reconCoords:
-    plt.scatter( (coord[0][0]**2 + coord[0][1]**2), coord[0][2])
+for curEv in reconCoords:
+    for coord in curEv:
+        plt.scatter( (coord[0][0]**2 + coord[0][1]**2), coord[0][2])
 
 
 
-plt.xlabel("r2")
-plt.ylabel("z")
+plt.xlabel("r2 (cm^2)")
+plt.ylabel("z (cm)")
 plt.title("r2 vs z")
 plt.grid(True)
 plt.legend()
+plt.savefig("recoR2vZ")
 plt.show()
 
 
 
 
 
-exit()
 
 # this is just so slow and also the geometry is wrong it isnt worth looking at
 # 3d visualizer
@@ -355,10 +383,11 @@ def plot_cylinder_bowl(radius, positive_z, negative_z, ax=None, wire_alpha=0.2, 
 fig, ax = plot_cylinder_bowl(radius=200,
                              positive_z=600,
                              negative_z=100)
-for coord in reconCoords:
-    x,y,z = coord[0]
-    # 25.4 is to convert from inches to mm
-    ax.scatter(x*25.4,y*25.4,z*25.4)
+for coordSet in reconCoords:
+    for coord in coordSet:
+        x,y,z = coord[0]
+        # 25.4 is to convert from inches to mm
+        ax.scatter(x*25.4,y*25.4,z*25.4)
 
 plt.show()
 
