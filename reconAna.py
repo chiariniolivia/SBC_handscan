@@ -13,6 +13,9 @@ if not os.path.exists(root):
     print(f"Path does not exist: {root}", file=sys.stderr)
     sys.exit(2)
 
+
+limiter = 20
+count = 0
 finderRecoPairs = []
 for dirpath, dirnames, filenames in os.walk(root):
     if "reco.sbc" in filenames and "bubble.sbc" in filenames:
@@ -25,7 +28,9 @@ for dirpath, dirnames, filenames in os.walk(root):
         if recoData is None or bubbleData is None:
             continue
         finderRecoPairs.append((bubbleData,recoData))
-
+        count += 1
+    if count >= limiter:
+        break
 # grab reco.py 
 import importlib.util
 def loadModule(path, moduleName):
@@ -42,10 +47,11 @@ getProjMat = loadModule(recover, "getProjMat")
 # 2d to 3d to 2d math
 
 def backTo2d(P,x):
+    x = x /25.4
     X_h = np.append(x,1.0)
     proj = P @ X_h
-    proj = proj[:2] / proj[2]
-    return proj
+    proj = proj[:2] /proj[2] 
+    return proj 
 
 
 projMatricies = []
@@ -169,6 +175,8 @@ def plot_camera_subplot(ax, items, cam_id):
                  length_includes_head=True,
                  fc='gray', ec='gray', alpha=0.8)
     ax.set_title(f'Camera {cam_id}')
+    #ax.set_xlim(-500,900)
+    #ax.set_ylim(-500,1400)
     ax.set_xlabel('x (pixels)')
     ax.set_ylabel('y (pixels)')
     ax.invert_yaxis()
@@ -185,17 +193,27 @@ for i, cam_id in enumerate((1, 2, 3)):
     plot_camera_subplot(axes[i], groups[cam_id], cam_id)
 plt.tight_layout()
 plt.savefig("camVisual.png")
-plt.show()
+#plt.show()
+plt.close()
 
-## 2d to 3d to 2d histogram
+## 2d to 3d to2d histogram
 dists_by_cam = {1: [], 2: [], 3: []}
+wayTooFarAway = 0
+total = 0
 for curSet in originalNewSets:
     for old, new, cam, ev in curSet:
+        total += 1
         old = np.asarray(old, dtype=float)
         new = np.asarray(new, dtype=float)
+
         dist = np.linalg.norm(new - old)
-        if dist <= 150:
+        if dist <= 2000:
             dists_by_cam[int(cam)].append(dist)
+            if dist > 150: 
+                wayTooFarAway += 1
+        else:
+            wayTooFarAway +=1
+print(f"More than 150 pixels away reproj error:\t" + str(wayTooFarAway) + "/" + str(total))
 all_dists = np.concatenate([np.asarray(dists_by_cam[k]) for k in (1, 2, 3)]) if any(dists_by_cam.values()) else np.array([])
 if all_dists.size:    
     bins = np.linspace(0, all_dists.max(), 30)
@@ -210,122 +228,163 @@ for cam in (1, 2, 3):
 plt.xlabel('Distance between coordinates (pixels)')
 plt.ylabel('Count')
 plt.title('Reprojection error')
-plt.legend()
 plt.grid(alpha=0.3)
 plt.tight_layout()
+plt.legend()
 plt.savefig("camHist.png")
-plt.show()
+#plt.show()
+plt.close()
 
 
-plt.vlines(4.525,-8.75,14.71997 - 15.358,color='r')
-plt.vlines(-4.525,-8.75,14.71997 - 15.358,color='r')
-plt.vlines(4.725,-8.75,14.71997 - 15.358,color='r')
-plt.vlines(-4.725,-8.75,14.71997 - 15.358,color='r')
+plt.vlines(25.4*4.525,25.4*-8.75,25.4*(14.71997 - 15.358),color='r')
+plt.vlines(25.4*-4.525,25.4*-8.75,25.4*(14.71997 - 15.358),color='r')
+plt.vlines(25.4*4.725,25.4*-8.75,25.4*(14.71997 - 15.358),color='r')
+plt.vlines(25.4*(-4.725),25.4*-8.75,25.4*(14.71997 - 15.358),color='r')
 
 theta = np.linspace(0, 1.19367, 400)
-rcirc = 2
-xcirc = rcirc * np.cos(theta) + 2.725
-ycirc = rcirc * np.sin(theta) + 14.71997 - 15.358
+rcirc = 2 * 25.4
+xcirc = rcirc * np.cos(theta) + 25.4*2.725
+ycirc = rcirc * np.sin(theta) + 25.4*(14.71997 - 15.358)
 plt.plot(xcirc, ycirc, c='r')
 theta = np.linspace(0, 1.19367, 400)
-rcirc = 2 - 0.2
-xcirc = rcirc * np.cos(theta) + 2.725
-ycirc = rcirc * np.sin(theta) + 14.71997 - 15.358
+rcirc = 2* 25.4 - 25.4*0.2
+xcirc = rcirc * np.cos(theta) +  25.4* 2.725
+ycirc = rcirc * np.sin(theta) + 25.4*(14.71997 - 15.358)
 plt.plot(xcirc, ycirc, c='r')
 theta = np.linspace(np.pi - 1.19367, np.pi, 400)
-rcirc = 2
-xcirc = rcirc * np.cos(theta) - 2.725
-ycirc = rcirc * np.sin(theta) + 14.71997 - 15.358
+rcirc = 2 * 25.4
+xcirc = rcirc * np.cos(theta) - 25.4*2.725
+ycirc = rcirc * np.sin(theta) + 25.4*(14.71997 - 15.358)
 plt.plot(xcirc, ycirc, c='r')
 theta = np.linspace(np.pi - 1.19367, np.pi, 400)
-rcirc = 2 - 0.2
-xcirc = rcirc * np.cos(theta) - 2.725
-ycirc = rcirc * np.sin(theta) + 14.71997 - 15.358
+rcirc = 2 * 25.4 - 25.4*0.2
+xcirc = rcirc * np.cos(theta) - 25.4*2.725
+ycirc = rcirc * np.sin(theta) + 25.4*(14.71997 - 15.358)
 plt.plot(xcirc, ycirc, c='r')
 theta = np.linspace(1.19367, np.pi-1.19367, 400)
-rcirc = 9.4
+rcirc = 9.4 * 25.4
 xcirc = rcirc * np.cos(theta)
-ycirc = rcirc * np.sin(theta) + 7.84 - 15.358
+ycirc = rcirc * np.sin(theta) + 25.4*(7.84 - 15.358)
 plt.plot(xcirc, ycirc, c='r')
 theta = np.linspace(1.19367, np.pi-1.19367, 400)
-rcirc = 9.4 - 0.2
+rcirc = 9.4 * 25.4- 25.4*0.2
 xcirc = rcirc * np.cos(theta)
-ycirc = rcirc * np.sin(theta) + 7.84 - 15.358
+ycirc = rcirc * np.sin(theta) + 25.4*(7.84 - 15.358)
 plt.plot(xcirc, ycirc,c='r')
 
 
 
-for curEv in reconCoords:
-    for coord in curEv:
-        plt.scatter(coord[0][0], coord[0][2], c=color_for_index(int(coord[1])))
+#for curEv in reconCoords:
+    #for coord in curEv:
+        #plt.scatter(coord[0][0], coord[0][2], color=color_for_index(int(coord[1])))
 
 
-plt.xlabel("x (cm)")
-plt.ylabel("z (cm)")
+plt.xlabel("x (mm)")
+plt.ylabel("z (mm)")
 plt.title("z vs x")
+plt.xlim(0, 200)
+plt.ylim(-250,100)
 plt.grid(True)
-plt.legend()
 plt.savefig("recoZvX.png")
-plt.show()
-
+#plt.show()
+plt.close()
 
 
 
 # y vs x
 
 theta = np.linspace(0, 2*np.pi, 400)
-plt.plot(4.525*np.cos(theta), 4.525*np.sin(theta), c='r')
-plt.plot((4.525+0.2)*np.cos(theta), (4.525+0.2)*np.sin(theta), c='r')
+plt.plot(25.4*4.525*np.cos(theta), 25.4*4.525*np.sin(theta), c='r')
+plt.plot(25.4*(4.525+0.2)*np.cos(theta), 25.4*(4.525+0.2)*np.sin(theta), c='r')
+total = 0
+bad = 0
 for curEv in reconCoords:
     for coord in curEv:
-        plt.scatter( coord[0][0], coord[0][1])
+        total+=1 
+        #plt.scatter( coord[0][0], coord[0][1])
+        if coord[0][0]** 2 + coord[0][1] ** 2 >= (25.4 * (4.525 + 0.2) + 10)**2 :
+            bad += 1
 
 
-plt.xlabel("x (cm)")
-plt.ylabel("y (cm)")
+
+print(f"Outside of y vs x bounds:\t" + str(bad) + "/" + str(total))
+plt.xlabel("x (mm)")
+plt.ylabel("y (mm)")
 plt.title("y vs x")
-plt.xlim(-5,5)
-plt.ylim(-5,5)
+plt.xlim(-5* 25.4,5 * 25.4)
+plt.ylim(-5* 25.4,5* 25.4)
 plt.grid(True)
-plt.legend()
 plt.savefig("recoYxX.png")
-plt.show()
-
+#plt.show()
+plt.close()
 
 
 
 # r2 vs z
 
-plt.vlines(4.525**2,-8.75,14.71997 - 15.358,color='r')
-plt.vlines(4.725**2,ymin=-8.75,ymax=14.71997 - 15.358,color='r')
+
+
+plt.vlines((25.4*4.525)**2,25.4*-8.75,25.4*(14.71997 - 15.358),color='r')
+plt.vlines((25.4*4.725)**2,ymin=25.4*-8.75,ymax=25.4*(14.71997 - 15.358),color='r')
 
 theta = np.linspace(0, 1.19367, 400)
-rcirc = 2
-plt.plot((rcirc*np.cos(theta)+2.725)**2,
-         rcirc*np.sin(theta)+14.71997-15.358,c='r')
+rcirc = 2 * 25.4
+plt.plot((rcirc*np.cos(theta)+25.4*2.725)**2,
+         rcirc*np.sin(theta)+25.4*(14.71997-15.358),c='r')
 
-rcirc = 1.8
-plt.plot((rcirc*np.cos(theta)+2.725)**2,
-         rcirc*np.sin(theta)+14.71997-15.358,c='r')
+rcirc = 1.8 * 25.4
+plt.plot((rcirc*np.cos(theta)+25.4*2.725)**2,
+         rcirc*np.sin(theta)+25.4*(14.71997-15.358),c='r')
 
+## need to turn  this into a heat map
+r2s, zs= [], []
+
+
+bad = 0
+total = 0
 for curEv in reconCoords:
     for coord in curEv:
-        plt.scatter( (coord[0][0]**2 + coord[0][1]**2), coord[0][2])
+        r2 = coord[0][0]**2 + coord[0][1]**2
+        z = coord[0][2]
+        r2s.append(r2)
+        zs.append(z)
+        total += 1
+        if z <= 25.4 * -8.75 - 10 or z >= 25.4 * (14.71887 - 15.358) + 10:
+            bad += 1
+
+print(f"Outside of z bounds:\t" + str(bad) + "/" + str(total))
 
 
+r2s = np.asarray(r2s)
+zs = np.asarray(zs)
+r2mask = (zs <=50) & (r2s >=2500)
+r2s = r2s[r2mask]
+zs = zs[r2mask]
+# resolution
+nx, ny = 1000,1000
 
-plt.xlabel("r2 (cm^2)")
-plt.ylabel("z (cm)")
+r2_edges = np.linspace(r2s.min(), r2s.max(), nx + 1)
+z_edges  = np.linspace(zs.min(),   zs.max(), ny + 1)
+counts = np.zeros((ny,nx), dtype =float)
+ix = np.clip(np.digitize(r2s, r2_edges) -1, 0, nx-1)
+iy = np.clip(np.digitize(zs,  z_edges) -1, 0, ny-1)
+np.add.at(counts, (iy,ix), 1)
+plt.pcolormesh(r2_edges, z_edges, counts, shading="auto", cmap="viridis")
+plt.colorbar(label="Bubble count")
+
+plt.xlabel("r2 (mm^2)")
+plt.ylabel("z (mm)")
+plt.xlim(2500,20000)
+plt.ylim(-300,50)
 plt.title("r2 vs z")
 plt.grid(True)
-plt.legend()
 plt.savefig("recoR2vZ")
 plt.show()
+plt.close()
 
 
 
-
-
+exit()
 
 # this is just so slow and also the geometry is wrong it isnt worth looking at
 # 3d visualizer
