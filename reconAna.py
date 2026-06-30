@@ -14,7 +14,7 @@ if not os.path.exists(root):
     sys.exit(2)
 
 
-limiter = 20
+limiter = 150
 count = 0
 finderRecoPairs = []
 for dirpath, dirnames, filenames in os.walk(root):
@@ -188,13 +188,13 @@ for curSet in originalNewSets:
         if cam in groups:
             groups[cam].append((item))
 
-fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-for i, cam_id in enumerate((1, 2, 3)): 
-    plot_camera_subplot(axes[i], groups[cam_id], cam_id)
-plt.tight_layout()
-plt.savefig("camVisual.png")
+#fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+#for i, cam_id in enumerate((1, 2, 3)): 
+   # plot_camera_subplot(axes[i], groups[cam_id], cam_id)
+#plt.tight_layout()
+#plt.savefig("camVisual.png")
 #plt.show()
-plt.close()
+#plt.close()
 
 ## 2d to 3d to2d histogram
 dists_by_cam = {1: [], 2: [], 3: []}
@@ -244,7 +244,7 @@ plt.close()
 # reco plotting
 
 
-xs,ys, r2s, zs= [], []
+xs,ys, zs, r2s = [], [], [], []
 
 total = 0
 badxy = 0
@@ -275,51 +275,11 @@ zs = np.asarray(zs)
 r2s = np.asarray(r2s)
 
 
-r2mask = (zs <=50) & (r2s >=2500)
-r2s = r2s[r2mask]
-zs = zs[r2mask]
 
 # resolution
 nx, ny = 1000,1000
 
 
-
-# r2 vs z
-
-
-
-plt.vlines((25.4*4.525)**2,25.4*-8.75,25.4*(14.71997 - 15.358),color='r')
-plt.vlines((25.4*4.725)**2,ymin=25.4*-8.75,ymax=25.4*(14.71997 - 15.358),color='r')
-
-theta = np.linspace(0, 1.19367, 400)
-rcirc = 2 * 25.4
-plt.plot((rcirc*np.cos(theta)+25.4*2.725)**2,
-         rcirc*np.sin(theta)+25.4*(14.71997-15.358),c='r')
-
-rcirc = 1.8 * 25.4
-plt.plot((rcirc*np.cos(theta)+25.4*2.725)**2,
-         rcirc*np.sin(theta)+25.4*(14.71997-15.358),c='r')
-
-
-r2_edges = np.linspace(r2s.min(), r2s.max(), nx + 1)
-r2z_edges  = np.linspace(zs.min(),   zs.max(), ny + 1)
-countsr2 = np.zeros((ny,nx), dtype =float)
-ix = np.clip(np.digitize(r2s, r2_edges) -1, 0, nx-1)
-iy = np.clip(np.digitize(zs,  r2z_edges) -1, 0, ny-1)
-np.add.at(countsr2, (iy,ix), 1)
-
-plt.pcolormesh(r2_edges, r2z_edges, countsr2, shading="auto", cmap="viridis")
-plt.colorbar(label="Bubble count")
-
-plt.xlabel("r2 (mm^2)")
-plt.ylabel("z (mm)")
-plt.xlim(2500,20000)
-plt.ylim(-300,50)
-plt.title("r2 vs z")
-plt.grid(True)
-plt.savefig("recoR2vZ")
-plt.show()
-plt.close()
 
 
 
@@ -333,9 +293,9 @@ plt.plot(25.4*(4.525+0.2)*np.cos(theta), 25.4*(4.525+0.2)*np.sin(theta), c='r')
 x_edges = np.linspace(xs.min(), xs.max(), nx + 1)
 y_edges  = np.linspace(ys.min(),ys.max(), ny + 1)
 countsxy = np.zeros((ny,nx), dtype =float)
-ix = np.clip(np.digitize(xs, x_edges) -1, 0, nx-1)
-iy = np.clip(np.digitize(ys,  y_edges) -1, 0, ny-1)
-np.add.at(countsxy, (iy,ix), 1)
+ix1 = np.clip(np.digitize(xs, x_edges) -1, 0, nx-1)
+iy1 = np.clip(np.digitize(ys,  y_edges) -1, 0, ny-1)
+np.add.at(countsxy, (iy1,ix1), 1)
 
 plt.pcolormesh(x_edges, y_edges, countsxy, shading="auto", cmap="viridis")
 plt.colorbar(label="Bubble count")
@@ -410,6 +370,47 @@ plt.grid(True)
 plt.savefig("recoZvX.png")
 plt.show()
 plt.close()
+
+# r2 vs z
+
+
+
+plt.vlines((25.4*4.525)**2,25.4*-8.75,25.4*(14.71997 - 15.358),color='r')
+plt.vlines((25.4*4.725)**2,ymin=25.4*-8.75,ymax=25.4*(14.71997 - 15.358),color='r')
+
+theta = np.linspace(0, 1.19367, 400)
+rcirc = 2 * 25.4
+plt.plot((rcirc*np.cos(theta)+25.4*2.725)**2,
+         rcirc*np.sin(theta)+25.4*(14.71997-15.358),c='r')
+
+rcirc = 1.8 * 25.4
+plt.plot((rcirc*np.cos(theta)+25.4*2.725)**2,
+         rcirc*np.sin(theta)+25.4*(14.71997-15.358),c='r')
+
+r2mask = (zs <=50) & (r2s >=2500)
+r2s = r2s[r2mask]
+zs = zs[r2mask]
+
+r2_edges = np.linspace(r2s.min(), r2s.max(), nx + 1)
+z_edges  = np.linspace(zs.min(),   zs.max(), ny + 1)
+countsr2 = np.zeros((ny,nx), dtype =float)
+ix = np.clip(np.digitize(r2s, r2_edges) -1, 0, nx-1)
+iy = np.clip(np.digitize(zs,  z_edges) -1, 0, ny-1)
+np.add.at(countsr2, (iy,ix), 1)
+
+plt.pcolormesh(r2_edges, z_edges, countsr2, shading="auto", cmap="viridis")
+plt.colorbar(label="Bubble count")
+
+plt.xlabel("r2 (mm^2)")
+plt.ylabel("z (mm)")
+plt.xlim(2500,20000)
+plt.ylim(-300,50)
+plt.title("r2 vs z")
+plt.grid(True)
+plt.savefig("recoR2vZ")
+plt.show()
+plt.close()
+
 
 
 exit()
