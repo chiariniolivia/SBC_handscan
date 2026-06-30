@@ -236,6 +236,124 @@ plt.savefig("camHist.png")
 plt.close()
 
 
+
+
+
+
+
+# reco plotting
+
+
+xs,ys, r2s, zs= [], []
+
+total = 0
+badxy = 0
+badr2 = 0
+for curEv in reconCoords:
+    for coord in curEv:
+        x = coord[0][0]
+        y = coord[0][1]
+        z = coord[0][2]
+        r2 = x**2 + y**2
+        xs.append(x)
+        ys.append(y)
+        zs.append(z)
+        r2s.append(r2)
+        total += 1
+        if z <= 25.4 * -8.75 - 10 or z >= 25.4 * (14.71887 - 15.358) + 10:
+            badr2 += 1
+        if r2 >= (25.4 * (4.525 + 0.2) + 10)**2:
+            badxy += 1
+print(f"Outside of y vs x bounds:\t" + str(badxy) + "/" + str(total))
+print(f"Outside of z bounds:\t" + str(badr2) + "/" + str(total))
+
+
+
+xs = np.asarray(xs)
+ys = np.asarray(ys)
+zs = np.asarray(zs)
+r2s = np.asarray(r2s)
+
+
+r2mask = (zs <=50) & (r2s >=2500)
+r2s = r2s[r2mask]
+zs = zs[r2mask]
+
+# resolution
+nx, ny = 1000,1000
+
+
+
+# r2 vs z
+
+
+
+plt.vlines((25.4*4.525)**2,25.4*-8.75,25.4*(14.71997 - 15.358),color='r')
+plt.vlines((25.4*4.725)**2,ymin=25.4*-8.75,ymax=25.4*(14.71997 - 15.358),color='r')
+
+theta = np.linspace(0, 1.19367, 400)
+rcirc = 2 * 25.4
+plt.plot((rcirc*np.cos(theta)+25.4*2.725)**2,
+         rcirc*np.sin(theta)+25.4*(14.71997-15.358),c='r')
+
+rcirc = 1.8 * 25.4
+plt.plot((rcirc*np.cos(theta)+25.4*2.725)**2,
+         rcirc*np.sin(theta)+25.4*(14.71997-15.358),c='r')
+
+
+r2_edges = np.linspace(r2s.min(), r2s.max(), nx + 1)
+r2z_edges  = np.linspace(zs.min(),   zs.max(), ny + 1)
+countsr2 = np.zeros((ny,nx), dtype =float)
+ix = np.clip(np.digitize(r2s, r2_edges) -1, 0, nx-1)
+iy = np.clip(np.digitize(zs,  r2z_edges) -1, 0, ny-1)
+np.add.at(countsr2, (iy,ix), 1)
+
+plt.pcolormesh(r2_edges, r2z_edges, countsr2, shading="auto", cmap="viridis")
+plt.colorbar(label="Bubble count")
+
+plt.xlabel("r2 (mm^2)")
+plt.ylabel("z (mm)")
+plt.xlim(2500,20000)
+plt.ylim(-300,50)
+plt.title("r2 vs z")
+plt.grid(True)
+plt.savefig("recoR2vZ")
+plt.show()
+plt.close()
+
+
+
+
+# y vs x
+
+theta = np.linspace(0, 2*np.pi, 400)
+plt.plot(25.4*4.525*np.cos(theta), 25.4*4.525*np.sin(theta), c='r')
+plt.plot(25.4*(4.525+0.2)*np.cos(theta), 25.4*(4.525+0.2)*np.sin(theta), c='r')
+
+x_edges = np.linspace(xs.min(), xs.max(), nx + 1)
+y_edges  = np.linspace(ys.min(),ys.max(), ny + 1)
+countsxy = np.zeros((ny,nx), dtype =float)
+ix = np.clip(np.digitize(xs, x_edges) -1, 0, nx-1)
+iy = np.clip(np.digitize(ys,  y_edges) -1, 0, ny-1)
+np.add.at(countsxy, (iy,ix), 1)
+
+plt.pcolormesh(x_edges, y_edges, countsxy, shading="auto", cmap="viridis")
+plt.colorbar(label="Bubble count")
+
+
+plt.xlabel("x (mm)")
+plt.ylabel("y (mm)")
+plt.title("y vs x")
+plt.xlim(-5* 25.4,5 * 25.4)
+plt.ylim(-5* 25.4,5* 25.4)
+plt.grid(True)
+plt.savefig("recoYxX.png")
+plt.show()
+plt.close()
+
+
+
+# x vs z
 plt.vlines(25.4*4.525,25.4*-8.75,25.4*(14.71997 - 15.358),color='r')
 plt.vlines(25.4*-4.525,25.4*-8.75,25.4*(14.71997 - 15.358),color='r')
 plt.vlines(25.4*4.725,25.4*-8.75,25.4*(14.71997 - 15.358),color='r')
@@ -272,11 +390,15 @@ xcirc = rcirc * np.cos(theta)
 ycirc = rcirc * np.sin(theta) + 25.4*(7.84 - 15.358)
 plt.plot(xcirc, ycirc,c='r')
 
+x_edges = np.linspace(xs.min(), xs.max(), nx + 1)
+z_edges  = np.linspace(zs.min(),zs.max(), ny + 1)
+countsxz = np.zeros((ny,nx), dtype =float)
+ix = np.clip(np.digitize(xs, x_edges) -1, 0, nx-1)
+iy = np.clip(np.digitize(zs,  z_edges) -1, 0, ny-1)
+np.add.at(countsxz, (iy,ix), 1)
 
-
-#for curEv in reconCoords:
-    #for coord in curEv:
-        #plt.scatter(coord[0][0], coord[0][2], color=color_for_index(int(coord[1])))
+plt.pcolormesh(x_edges, z_edges, countsxz, shading="auto", cmap="viridis")
+plt.colorbar(label="Bubble count")
 
 
 plt.xlabel("x (mm)")
@@ -286,102 +408,8 @@ plt.xlim(0, 200)
 plt.ylim(-250,100)
 plt.grid(True)
 plt.savefig("recoZvX.png")
-#plt.show()
-plt.close()
-
-
-
-# y vs x
-
-theta = np.linspace(0, 2*np.pi, 400)
-plt.plot(25.4*4.525*np.cos(theta), 25.4*4.525*np.sin(theta), c='r')
-plt.plot(25.4*(4.525+0.2)*np.cos(theta), 25.4*(4.525+0.2)*np.sin(theta), c='r')
-total = 0
-bad = 0
-for curEv in reconCoords:
-    for coord in curEv:
-        total+=1 
-        #plt.scatter( coord[0][0], coord[0][1])
-        if coord[0][0]** 2 + coord[0][1] ** 2 >= (25.4 * (4.525 + 0.2) + 10)**2 :
-            bad += 1
-
-
-
-print(f"Outside of y vs x bounds:\t" + str(bad) + "/" + str(total))
-plt.xlabel("x (mm)")
-plt.ylabel("y (mm)")
-plt.title("y vs x")
-plt.xlim(-5* 25.4,5 * 25.4)
-plt.ylim(-5* 25.4,5* 25.4)
-plt.grid(True)
-plt.savefig("recoYxX.png")
-#plt.show()
-plt.close()
-
-
-
-# r2 vs z
-
-
-
-plt.vlines((25.4*4.525)**2,25.4*-8.75,25.4*(14.71997 - 15.358),color='r')
-plt.vlines((25.4*4.725)**2,ymin=25.4*-8.75,ymax=25.4*(14.71997 - 15.358),color='r')
-
-theta = np.linspace(0, 1.19367, 400)
-rcirc = 2 * 25.4
-plt.plot((rcirc*np.cos(theta)+25.4*2.725)**2,
-         rcirc*np.sin(theta)+25.4*(14.71997-15.358),c='r')
-
-rcirc = 1.8 * 25.4
-plt.plot((rcirc*np.cos(theta)+25.4*2.725)**2,
-         rcirc*np.sin(theta)+25.4*(14.71997-15.358),c='r')
-
-## need to turn  this into a heat map
-r2s, zs= [], []
-
-
-bad = 0
-total = 0
-for curEv in reconCoords:
-    for coord in curEv:
-        r2 = coord[0][0]**2 + coord[0][1]**2
-        z = coord[0][2]
-        r2s.append(r2)
-        zs.append(z)
-        total += 1
-        if z <= 25.4 * -8.75 - 10 or z >= 25.4 * (14.71887 - 15.358) + 10:
-            bad += 1
-
-print(f"Outside of z bounds:\t" + str(bad) + "/" + str(total))
-
-
-r2s = np.asarray(r2s)
-zs = np.asarray(zs)
-r2mask = (zs <=50) & (r2s >=2500)
-r2s = r2s[r2mask]
-zs = zs[r2mask]
-# resolution
-nx, ny = 1000,1000
-
-r2_edges = np.linspace(r2s.min(), r2s.max(), nx + 1)
-z_edges  = np.linspace(zs.min(),   zs.max(), ny + 1)
-counts = np.zeros((ny,nx), dtype =float)
-ix = np.clip(np.digitize(r2s, r2_edges) -1, 0, nx-1)
-iy = np.clip(np.digitize(zs,  z_edges) -1, 0, ny-1)
-np.add.at(counts, (iy,ix), 1)
-plt.pcolormesh(r2_edges, z_edges, counts, shading="auto", cmap="viridis")
-plt.colorbar(label="Bubble count")
-
-plt.xlabel("r2 (mm^2)")
-plt.ylabel("z (mm)")
-plt.xlim(2500,20000)
-plt.ylim(-300,50)
-plt.title("r2 vs z")
-plt.grid(True)
-plt.savefig("recoR2vZ")
 plt.show()
 plt.close()
-
 
 
 exit()
