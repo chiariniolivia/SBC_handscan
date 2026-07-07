@@ -20,14 +20,14 @@ def bubble_mult(bubble_data, ev):
 
     # get all camera frame pairs within a range of the first mutli cam event
     n = 5
-    seq = [(f, c, s) for f, c, s, e  in zip(frames, cams, events, sigs) if ( f >= firstFrame and f <= firstFrame + (10 + n) and e == int(ev))]
+    seq = [(f, c) for f, c, s, e  in zip(frames, cams, sigs, events) if ( f >= firstFrame and f <= firstFrame + (10 + n) and int(e) == int(ev) and float(s) >= 0.5)]
     if not seq:
-        return 0
+        return -1
 
-    mult = Counter(seq)  # {(frame, cam, significance): multiplicity}
+    mult = Counter(seq)  # {(frame, cam): multiplicity}
     byCamDict = defaultdict(dict)
     lastSeen = set()
-    for f, c, s  in seq:
+    for f, c  in seq:
         if (f,c) not in lastSeen:
             byCamDict[c][f] = mult[(f,c)]
             lastSeen.add((f,c)) 
@@ -35,25 +35,25 @@ def bubble_mult(bubble_data, ev):
     
     sortedByMult = sorted(mult.keys(), key = lambda k: mult[k], reverse=True)
     checked  = []
-    for f0, c0, s0 in sortedByMult:
-        if ( (f0,c0) in checked) or s0 <= 0.75:
-            print(s0)
+    minToReturn = -2
+    for f0, c0 in sortedByMult:
+        if ( (f0,c0) in checked):
             continue
         checked.append((f0,c0))
         m0 = mult[(f0,c0)]
         ok = True
         for offset in range(n):    
-            if  mult[f0 + offset, c0] < mult[f0, c0]:
+            if  mult[f0 + offset, c0] < m0:
                 ok = False
                 break
         if ok:
-            return m0
-    return 0
-
+                return m0
+        
+    return -2
 
 reconPath = '/exp/e961/data/SBC-25-recon/dev-output/' 
 
-runsToCheck = [("20260212_0",3), ("20260212_1",5)]
+runsToCheck = [("20260212_0",3), ("20260212_1",5), ("20260213_4",16)]
 for run, ev in runsToCheck:
     bubbleData = Streamer(reconPath + run + '/bubble.sbc').to_dict()
     print(bubble_mult(bubbleData,ev))
