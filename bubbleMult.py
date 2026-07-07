@@ -6,7 +6,7 @@ import numpy as np
 def bubble_mult(bubble_data, ev):
     frames  = [int(f) for f in bubble_data["frame"]]
     cams    = [int(c) for c in bubble_data["cam"]]
-    evs     = [int(e) for e in bubble_data["ev"]]
+    events     = [int(e) for e in bubble_data["ev"]]
     
 
     # find first mutli cam frame
@@ -55,7 +55,7 @@ reconPath = '/exp/e961/data/SBC-25-recon/dev-output/'
 
 runsToCheck = [("20260212_0",3), ("20260212_1",5)]
 for run, ev in runsToCheck:
-    bubbleData = Streamer(reconPath + run + '/bubble.sbc').recon_info_to_dict()
+    bubbleData = Streamer(reconPath + run + '/bubble.sbc').to_dict()
     print(bubble_mult(bubbleData,ev))
 
 
