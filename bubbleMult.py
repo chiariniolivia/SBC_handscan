@@ -35,8 +35,9 @@ def bubble_mult(bubble_data, ev):
     
     sortedByMult = sorted(mult.keys(), key = lambda k: mult[k], reverse=True)
     checked  = []
-    for f0, c0 in sortedByMult:
-        if ( (f0,c0) in checked):
+    for f0, c0, s0 in sortedByMult:
+        if ( (f0,c0) in checked) or s0 <= 0.75:
+            print(s0)
             continue
         checked.append((f0,c0))
         m0 = mult[(f0,c0)]
