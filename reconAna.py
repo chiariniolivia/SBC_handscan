@@ -277,7 +277,7 @@ r2s = np.asarray(r2s)
 
 
 # resolution
-nx, ny = 1000,1000
+nx, ny = int(len(xs)/10),int(len(xs)/10)
 
 
 
