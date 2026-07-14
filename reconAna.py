@@ -27,6 +27,7 @@ for dirpath, dirnames, filenames in os.walk(root):
         bubbleData = bubbleData.to_dict()
         if recoData is None or bubbleData is None:
             continue
+        print(recoData)
         finderRecoPairs.append((bubbleData,recoData))
         count += 1
     if count >= limiter:
