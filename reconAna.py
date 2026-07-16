@@ -306,14 +306,14 @@ ix1 = np.clip(np.digitize(xs, x_edges) -1, 0, nx-1)
 iy1 = np.clip(np.digitize(ys,  y_edges) -1, 0, ny-1)
 np.add.at(countsxy, (iy1,ix1), 1)
 
-ax1.pcolormesh(x_edges, y_edges, countsxy, shading="auto", cmap="viridis")
-ax1.colorbar(label="Bubble count")
+p1 = ax1.pcolormesh(x_edges, y_edges, countsxy, shading="auto", cmap="viridis")
+plt.colorbar(p1, label="Bubble count", ax=ax1)
 
-plt.xlabel("x (mm)")
-plt.ylabel("y (mm)")
-plt.title("y vs x")
-plt.xlim(-5* 25.4,5 * 25.4)
-plt.ylim(-5* 25.4,5* 25.4)
+ax1.set_xlabel("x (mm)")
+ax1.set_ylabel("y (mm)")
+ax1.set_title("y vs x")
+ax1.set_xlim(-5* 25.4,5 * 25.4)
+ax1.set_ylim(-5* 25.4,5* 25.4)
 
 # x vs z
 ax2.vlines(25.4*4.525,25.4*-8.75,25.4*(14.71997 - 15.358),color='r')
@@ -359,13 +359,13 @@ ix = np.clip(np.digitize(xs, x_edges) -1, 0, nx-1)
 iy = np.clip(np.digitize(zs,  z_edges) -1, 0, ny-1)
 np.add.at(countsxz, (iy,ix), 1)
 
-ax2.pcolormesh(x_edges, z_edges, countsxz, shading="auto", cmap="viridis")
-ax2.colorbar(label="Bubble count")
-ax2.xlabel("x (mm)")
-ax2.ylabel("z (mm)")
-ax2.title("z vs x")
-ax2.xlim(0, 200)
-ax2.ylim(-250,100)
+p2 = ax2.pcolormesh(x_edges, z_edges, countsxz, shading="auto", cmap="viridis")
+plt.colorbar(p2, label="Bubble count", ax=ax2)
+ax2.set_xlabel("x (mm)")
+ax2.set_ylabel("z (mm)")
+ax2.set_title("z vs x")
+ax2.set_xlim(0, 200)
+ax2.set_ylim(-250,100)
 
 
 # r2 vs z
@@ -382,26 +382,27 @@ ax3.plot((rcirc*np.cos(theta)+25.4*2.725)**2,
          rcirc*np.sin(theta)+25.4*(14.71997-15.358),c='r')
 
 r2mask = (zs <=50) & (r2s >=2500)
-r2s = r2s[r2mask]
-zs = zs[r2mask]
+r2s_mask = r2s[r2mask]
+zs_mask = zs[r2mask]
+nx1 = int((r2s_mask.max() - r2s_mask.min())//1000)
+ny1 = int(len(zs_mask)/10)
 
-r2_edges = np.linspace(r2s.min(), r2s.max(), nx + 1)
-z_edges  = np.linspace(zs.min(),   zs.max(), ny + 1)
-countsr2 = np.zeros((ny,nx), dtype =float)
-ix = np.clip(np.digitize(r2s, r2_edges) -1, 0, nx-1)
-iy = np.clip(np.digitize(zs,  z_edges) -1, 0, ny-1)
+r2_edges = np.linspace(r2s_mask.min(), r2s_mask.max(), nx1 + 1)
+z_edges  = np.linspace(zs_mask.min(),   zs_mask.max(), ny1 + 1)
+countsr2 = np.zeros((ny1,nx1), dtype =float)
+ix = np.clip(np.digitize(r2s_mask, r2_edges) -1, 0, nx1-1)
+iy = np.clip(np.digitize(zs_mask,  z_edges) -1, 0, ny1-1)
 np.add.at(countsr2, (iy,ix), 1)
 
-ax3.pcolormesh(r2_edges, z_edges, countsr2, shading="auto", cmap="viridis")
-ax3.colorbar(label="Bubble count")
+p3 = ax3.pcolormesh(r2_edges, z_edges, countsr2, shading="auto", cmap="viridis")
+plt.colorbar(p3, label="Bubble count", ax=ax3)
 
-ax3.xlabel("r2 (mm^2)")
-ax3.ylabel("z (mm)")
-ax3.xlim(2500,20000)
-ax3.ylim(-300,50)
-ax3.title("r2 vs z")
-
-
+ax3.set_xlabel("r2 (mm^2)")
+ax3.set_ylabel("z (mm)")
+ax3.set_xlim(2500,20000)
+ax3.set_ylim(-300,50)
+ax3.set_title("r2 vs z")
+ax3.set_aspect('auto')
 
 
 plt.savefig("triheat.png")
@@ -517,8 +518,8 @@ plt.plot((rcirc*np.cos(theta)+25.4*2.725)**2,
 r2mask = (zs <=50) & (r2s >=2500)
 r2s = r2s[r2mask]
 zs = zs[r2mask]
-nx = int(len(r2s))
-ny = int(len(zs))
+nx = int((r2s.max() - r2s.min())//1000)
+ny = int(len(zs_mask)/10)
 
 r2_edges = np.linspace(r2s.min(), r2s.max(), (nx + 1))
 z_edges  = np.linspace(zs.min(),   zs.max(), (ny + 1))
@@ -539,74 +540,3 @@ plt.grid(True)
 plt.savefig("recoR2vZ")
 plt.show()
 plt.close()
-<<<<<<< HEAD
-=======
-
-
-
-exit()
-
-# this is just so slow and also the geometry is wrong it isnt worth looking at
-# 3d visualizer
-# modified from event viewer, https://github.com/SBC-Collaboration/LAr10Ana/blob/main/EventDisplay/eventdisplay/tabs/three_d_bubble.py
-
-from math import cos, sin
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-def plot_cylinder_bowl(radius, positive_z, negative_z, ax=None, wire_alpha=0.2, base_f=50):
-    
-    r = float(radius)
-    pz = float(positive_z)
-    nz = float(negative_z)
-    # Create axes if not provided
-    fig = None    
-    if ax is None:
-        fig = plt.figure(figsize=(8, 6))
-        ax = fig.add_subplot(111, projection='3d')
-    # Upper cylinder (polar coords)
-    u = np.linspace(0, 2 * np.pi, 100)
-    
-    z_samples = max(2, int(max(1.0, abs(pz)) / 2)) if pz != 0 else 2
-    z = np.linspace(0, abs(pz), z_samples)
-    U, Z = np.meshgrid(u, z)
-    rstride = 1 + int((abs(pz) + abs(nz)) / 2 / 20)
-    cstride = 5
-    ax.plot_wireframe(r * np.cos(U), r * np.sin(U), np.sign(nz) * -Z,
-                      alpha=wire_alpha, rstride=rstride, cstride=cstride)
-    
-    u = np.linspace(0, 2 * np.pi, 100)
-    v_samples = max(2, int(max(1.0, abs(nz)) / 2)) if nz != 0 else 2
-    v = np.linspace(np.pi / 2, np.pi, v_samples)
-    U, V = np.meshgrid(u, v)
-    rstride = 1 + int((abs(pz) + abs(nz)) / 2 / 40)
-    cstride = 5
-    ax.plot_wireframe(r * np.cos(U) * np.sin(V),
-                      r * np.sin(U) * np.sin(V),
-                      -nz * np.cos(V),
-                      alpha=wire_alpha, rstride=rstride, cstride=cstride)
-    
-    f = float(base_f)
-    ax.set_xlim(-r - f, r + f)
-    ax.set_ylim(-r - f, r + f)
-    if np.sign(nz) == 1:
-        ax.set_zlim(-pz + f, nz - f)
-    else:
-        ax.set_zlim(nz - f, -pz + f)
-    
-    ax.set_xlabel('X (mm)')
-    ax.set_ylabel('Y (mm)')
-    ax.set_zlabel('Z (mm)')
-    return fig, ax
-
-
-fig, ax = plot_cylinder_bowl(radius=200,
-                             positive_z=600,
-                             negative_z=100)
-for coordSet in reconCoords:
-    for coord in coordSet:
-        x,y,z = coord[0]
-        # 25.4 is to convert from inches to mm
-        ax.scatter(x*25.4,y*25.4,z*25.4)
-
-plt.show()
->>>>>>> 47c91d41b643a0adf66e67fe99f31cbb34d465bb
