@@ -27,7 +27,6 @@ for dirpath, dirnames, filenames in os.walk(root):
         bubbleData = bubbleData.to_dict()
         if recoData is None or bubbleData is None:
             continue
-        print(recoData)
         finderRecoPairs.append((bubbleData,recoData))
         count += 1
     if count >= limiter:
@@ -278,7 +277,7 @@ r2s = np.asarray(r2s)
 
 
 # resolution
-nx, ny = int(len(xs)/10),int(len(xs)/10)
+nx, ny = int(len(xs)/3),int(len(xs)/3)
 
 
 
@@ -391,9 +390,11 @@ plt.plot((rcirc*np.cos(theta)+25.4*2.725)**2,
 r2mask = (zs <=50) & (r2s >=2500)
 r2s = r2s[r2mask]
 zs = zs[r2mask]
+nx = int(len(r2s))
+ny = int(len(zs))
 
-r2_edges = np.linspace(r2s.min(), r2s.max(), nx + 1)
-z_edges  = np.linspace(zs.min(),   zs.max(), ny + 1)
+r2_edges = np.linspace(r2s.min(), r2s.max(), (nx + 1))
+z_edges  = np.linspace(zs.min(),   zs.max(), (ny + 1))
 countsr2 = np.zeros((ny,nx), dtype =float)
 ix = np.clip(np.digitize(r2s, r2_edges) -1, 0, nx-1)
 iy = np.clip(np.digitize(zs,  z_edges) -1, 0, ny-1)
@@ -479,5 +480,3 @@ for coordSet in reconCoords:
         ax.scatter(x*25.4,y*25.4,z*25.4)
 
 plt.show()
-
-
