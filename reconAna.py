@@ -27,7 +27,6 @@ for dirpath, dirnames, filenames in os.walk(root):
         bubbleData = bubbleData.to_dict()
         if recoData is None or bubbleData is None:
             continue
-        print(recoData)
         finderRecoPairs.append((bubbleData,recoData))
         count += 1
     if count >= limiter:
@@ -278,7 +277,7 @@ r2s = np.asarray(r2s)
 
 
 # resolution
-nx, ny = int(len(xs)/10),int(len(xs)/10)
+nx, ny = int(len(xs)/3),int(len(xs)/3)
 
 fig = plt.figure(figsize=(8,8), constrained_layout=True)
 gs = fig.add_gridspec(nrows=3, ncols=2, 
@@ -518,9 +517,11 @@ plt.plot((rcirc*np.cos(theta)+25.4*2.725)**2,
 r2mask = (zs <=50) & (r2s >=2500)
 r2s = r2s[r2mask]
 zs = zs[r2mask]
+nx = int(len(r2s))
+ny = int(len(zs))
 
-r2_edges = np.linspace(r2s.min(), r2s.max(), nx + 1)
-z_edges  = np.linspace(zs.min(),   zs.max(), ny + 1)
+r2_edges = np.linspace(r2s.min(), r2s.max(), (nx + 1))
+z_edges  = np.linspace(zs.min(),   zs.max(), (ny + 1))
 countsr2 = np.zeros((ny,nx), dtype =float)
 ix = np.clip(np.digitize(r2s, r2_edges) -1, 0, nx-1)
 iy = np.clip(np.digitize(zs,  z_edges) -1, 0, ny-1)
@@ -538,3 +539,74 @@ plt.grid(True)
 plt.savefig("recoR2vZ")
 plt.show()
 plt.close()
+<<<<<<< HEAD
+=======
+
+
+
+exit()
+
+# this is just so slow and also the geometry is wrong it isnt worth looking at
+# 3d visualizer
+# modified from event viewer, https://github.com/SBC-Collaboration/LAr10Ana/blob/main/EventDisplay/eventdisplay/tabs/three_d_bubble.py
+
+from math import cos, sin
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+def plot_cylinder_bowl(radius, positive_z, negative_z, ax=None, wire_alpha=0.2, base_f=50):
+    
+    r = float(radius)
+    pz = float(positive_z)
+    nz = float(negative_z)
+    # Create axes if not provided
+    fig = None    
+    if ax is None:
+        fig = plt.figure(figsize=(8, 6))
+        ax = fig.add_subplot(111, projection='3d')
+    # Upper cylinder (polar coords)
+    u = np.linspace(0, 2 * np.pi, 100)
+    
+    z_samples = max(2, int(max(1.0, abs(pz)) / 2)) if pz != 0 else 2
+    z = np.linspace(0, abs(pz), z_samples)
+    U, Z = np.meshgrid(u, z)
+    rstride = 1 + int((abs(pz) + abs(nz)) / 2 / 20)
+    cstride = 5
+    ax.plot_wireframe(r * np.cos(U), r * np.sin(U), np.sign(nz) * -Z,
+                      alpha=wire_alpha, rstride=rstride, cstride=cstride)
+    
+    u = np.linspace(0, 2 * np.pi, 100)
+    v_samples = max(2, int(max(1.0, abs(nz)) / 2)) if nz != 0 else 2
+    v = np.linspace(np.pi / 2, np.pi, v_samples)
+    U, V = np.meshgrid(u, v)
+    rstride = 1 + int((abs(pz) + abs(nz)) / 2 / 40)
+    cstride = 5
+    ax.plot_wireframe(r * np.cos(U) * np.sin(V),
+                      r * np.sin(U) * np.sin(V),
+                      -nz * np.cos(V),
+                      alpha=wire_alpha, rstride=rstride, cstride=cstride)
+    
+    f = float(base_f)
+    ax.set_xlim(-r - f, r + f)
+    ax.set_ylim(-r - f, r + f)
+    if np.sign(nz) == 1:
+        ax.set_zlim(-pz + f, nz - f)
+    else:
+        ax.set_zlim(nz - f, -pz + f)
+    
+    ax.set_xlabel('X (mm)')
+    ax.set_ylabel('Y (mm)')
+    ax.set_zlabel('Z (mm)')
+    return fig, ax
+
+
+fig, ax = plot_cylinder_bowl(radius=200,
+                             positive_z=600,
+                             negative_z=100)
+for coordSet in reconCoords:
+    for coord in coordSet:
+        x,y,z = coord[0]
+        # 25.4 is to convert from inches to mm
+        ax.scatter(x*25.4,y*25.4,z*25.4)
+
+plt.show()
+>>>>>>> 47c91d41b643a0adf66e67fe99f31cbb34d465bb
