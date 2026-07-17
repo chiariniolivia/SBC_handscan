@@ -1,3 +1,4 @@
+# imports
 import sys, os
 import matplotlib.pyplot as plt
 import numpy as np
@@ -14,6 +15,7 @@ if not os.path.exists(root):
     sys.exit(2)
 
 
+# walk the root dir and pair up folders that have both a reco.sbc and bubble.sbc, stop after limiter pairs
 limiter = 150
 count = 0
 finderRecoPairs = []
@@ -32,6 +34,7 @@ for dirpath, dirnames, filenames in os.walk(root):
     if count >= limiter:
         break
 # grab reco.py 
+# helper to pull a function out of a python file by path, without a normal import
 import importlib.util
 def loadModule(path, moduleName):
     path = os.path.expanduser(path)
@@ -42,6 +45,7 @@ def loadModule(path, moduleName):
     spec.loader.exec_module(module)
     func = getattr(module,moduleName)
     return func
+# load the getProjMat function from the given reco version
 getProjMat = loadModule(recover, "getProjMat")
 
 # 2d to 3d to 2d math
@@ -54,11 +58,19 @@ def backTo2d(P,x):
     return proj 
 
 
+# grab the projection matrix for each of the 3 cameras
 projMatricies = []
 projMatricies.append(getProjMat(1))
 projMatricies.append(getProjMat(2))
 projMatricies.append(getProjMat(3))
+
+# if true, grabCoords stops and returns after the first bubble/reco pair where both the
+# bubble finder position and the reco coord are not nan and not <= -999
+FIRST_PAIR_ONLY = True
+
+# match up bubble finder and reco events/frames, then reproject the reco 3d coord back to 2d for each cam
 def grabCoords(bubbleInfo,reconInfo):
+    # events that show up in both the bubble finder and reco data
     eventsToCheck = []
     for evNum in bubbleInfo["ev"]:
         if evNum in reconInfo["ev"] and not evNum in eventsToCheck:
@@ -108,11 +120,32 @@ def grabCoords(bubbleInfo,reconInfo):
             for i in iList:
                 oList.append((bubbleInfo["pos"][i], bubbleInfo["cam"][i], bubbleInfo["ev"][i]))
 
+            # reproject the 3d reco coord back to 2d for each cam and pair it with the original bubble coord
+            addedPair = False
             for o in oList:
+                if FIRST_PAIR_ONLY:
+                    # same not-nan / not <= -999 check used on curReco above, applied to both sides of the pair
+                    bubblePos = np.asarray(o[0], dtype=float)
+                    recoArr = np.asarray(curReco, dtype=float)
+                    bubbleBad = np.isnan(bubblePos).any() or (bubblePos <= -999).any()
+                    recoBad = np.isnan(recoArr).any() or (recoArr <= -999).any()
+                    if bubbleBad or recoBad:
+                        continue
+                    setsToReturn.append((o[0], backTo2d(projMatricies[o[1]-1],curReco), o[1], o[2]))
+                    addedPair = True
+                    # only want one pair for this cam, stop checking other cams in this frame
+                    break
                 setsToReturn.append((o[0], backTo2d(projMatricies[o[1]-1],curReco), o[1], o[2]))
-            recoToReturn.append((curReco, evNum))
+            if FIRST_PAIR_ONLY:
+                if addedPair:
+                    recoToReturn.append((curReco, evNum))
+                    # got our one pair for this event, move on to the next event
+                    break
+            else:
+                recoToReturn.append((curReco, evNum))
     return setsToReturn, recoToReturn
 
+# run grabCoords on every reco/bubble pair we found
 # format is (original cam coordinate, reprojected cam coordinate, cam number)
 originalNewSets = []
 reconCoords = []
@@ -128,6 +161,7 @@ for pair in finderRecoPairs:
     originalNewSets.append(evSet)
     reconCoords.append(recoSet)
 
+# pick a semi-random color for a given index, kept consistent across runs
 import colorsys
 import hashlib
 import random
@@ -148,6 +182,7 @@ def color_for_index(i):
     ran3 = random.Random(i+101).random()
     return (ran1,ran2,ran3)
 
+# plot original vs reprojected points for one camera, with arrows showing the offset
 def plot_camera_subplot(ax, items, cam_id):
     if not items:
         ax.axis('off')
@@ -181,7 +216,9 @@ def plot_camera_subplot(ax, items, cam_id):
     ax.set_ylabel('y (pixels)')
     ax.invert_yaxis()
 
+# only make the per-camera scatter/arrow plots and reproj error histogram if there's just one event
 if count == 1:
+    # group points by camera so each subplot only gets its own cam's points
     groups = {1: [], 2: [], 3: []}
     for curSet in originalNewSets:
         for item in curSet:
@@ -196,6 +233,7 @@ if count == 1:
     plt.savefig("camVisual.png")
     plt.close()
 
+    # compute the reprojection error distance for every point, split by camera
     dists_by_cam = {1: [], 2: [], 3: []}
     wayTooFarAway = 0
     total = 0
@@ -213,6 +251,7 @@ if count == 1:
             else:
                 wayTooFarAway +=1
     print(f"More than 150 pixels away reproj error:\t" + str(wayTooFarAway) + "/" + str(total))
+    # build shared bins for the histogram from the full range of distances
     all_dists = np.concatenate([np.asarray(dists_by_cam[k]) for k in (1, 2, 3)]) if any(dists_by_cam.values()) else np.array([])
     if all_dists.size:    
         bins = np.linspace(0, all_dists.max(), 30)
@@ -233,6 +272,7 @@ if count == 1:
     plt.savefig("camHist.png")
     plt.close()
 
+# pull x, y, z out of every reco coord and flag ones outside the detector's xy/z bounds
 xs, ys, zs, r2s = [], [], [], []
 
 total = 0
@@ -256,6 +296,7 @@ for curEv in reconCoords:
 print(f"Outside of y vs x bounds:\t" + str(badxy) + "/" + str(total))
 print(f"Outside of z bounds:\t" + str(badr2) + "/" + str(total))
 
+# free up memory before building the heat maps below
 import gc
 gc.collect()
 
@@ -264,8 +305,13 @@ ys = np.asarray(ys, dtype=np.float32)
 zs = np.asarray(zs, dtype=np.float32)
 r2s = np.asarray(r2s, dtype=np.float32)
 
-TARGET_BIN_MM = 3.0       # physical bin width, in mm, for every heat map axis
-MAX_BINS_PER_AXIS = 2000  # hard cap regardless of TARGET_BIN_MM
+# settings used by the bin edge helper below
+if not FIRST_PAIR_ONLY:
+    TARGET_BIN_MM = 3.0       # physical bin width, in mm, for every heat map axis
+    MAX_BINS_PER_AXIS = 2000  # hard cap regardless of TARGET_BIN_MM
+else:
+    TARGET_BIN_MM = 10.0       # physical bin width, in mm, for every heat map axis
+    MAX_BINS_PER_AXIS = 2000  # hard cap regardless of TARGET_BIN_MM
 
 def mm_bin_edges(data_min, data_max, target_width_mm, max_bins=MAX_BINS_PER_AXIS):
     """Bin edges spaced at ~target_width_mm, evenly covering [data_min, data_max],
@@ -282,6 +328,7 @@ def hist2d_counts(a, b, a_edges, b_edges):
     counts, _, _ = np.histogram2d(a, b, bins=[a_edges, b_edges])
     return counts.T.astype(np.float32)
 
+# build bin edges and 2d histograms for the xy and xz heat maps
 x_edges_xy = mm_bin_edges(xs.min(), xs.max(), TARGET_BIN_MM)
 y_edges = mm_bin_edges(ys.min(), ys.max(), TARGET_BIN_MM)
 z_edges = mm_bin_edges(zs.min(), zs.max(), TARGET_BIN_MM)
@@ -290,6 +337,7 @@ x_edges_xz = x_edges_xy
 countsxy = hist2d_counts(xs, ys, x_edges_xy, y_edges)
 countsxz = hist2d_counts(xs, zs, x_edges_xz, z_edges)
 
+# build the r2 vs z heat map, only using points near the target region
 r2mask = (zs <= 50) & (r2s >= 2500)
 r2s_mask = r2s[r2mask]
 zs_mask = zs[r2mask]
@@ -304,11 +352,13 @@ countsr2 = hist2d_counts(r2s_mask, zs_mask, r2_edges, z_edges_r2)
 del r2mask, r2s_mask, zs_mask, r_mask
 gc.collect()
 
+# draw the detector's xy boundary circles on top of a plot
 def draw_xy_guides(ax):
     theta = np.linspace(0, 2*np.pi, 400)
     ax.plot(25.4*4.525*np.cos(theta), 25.4*4.525*np.sin(theta), c='r')
     ax.plot(25.4*(4.525+0.2)*np.cos(theta), 25.4*(4.525+0.2)*np.sin(theta), c='r')
 
+# draw the detector's xz boundary lines/arcs on top of a plot
 def draw_xz_guides(ax):
     ax.vlines(25.4*4.525, 25.4*-8.75, 25.4*(14.71997 - 15.358), color='r')
     ax.vlines(25.4*-4.525, 25.4*-8.75, 25.4*(14.71997 - 15.358), color='r')
@@ -346,6 +396,7 @@ def draw_xz_guides(ax):
     ycirc = rcirc * np.sin(theta) + 25.4*(7.84 - 15.358)
     ax.plot(xcirc, ycirc, c='r')
 
+# draw the detector's r2 vs z boundary lines/arcs on top of a plot
 def draw_r2z_guides(ax):
     ax.vlines((25.4*4.525)**2, 25.4*-8.75, 25.4*(14.71997 - 15.358), color='r')
     ax.vlines((25.4*4.725)**2, ymin=25.4*-8.75, ymax=25.4*(14.71997 - 15.358), color='r')
@@ -359,6 +410,7 @@ def draw_r2z_guides(ax):
     ax.plot((rcirc*np.cos(theta)+25.4*2.725)**2,
             rcirc*np.sin(theta)+25.4*(14.71997-15.358), c='r')
 
+# combined figure with all three heat maps (xy, xz, r2 vs z) side by side
 fig = plt.figure(figsize=(8, 8), constrained_layout=True)
 gs = fig.add_gridspec(nrows=3, ncols=2, height_ratios=[1, 1, 1])
 
@@ -402,6 +454,7 @@ plt.savefig("triheat.png")
 plt.close(fig)
 
 
+# standalone y vs x heat map
 fig, ax = plt.subplots()
 draw_xy_guides(ax)
 mesh = ax.pcolormesh(x_edges_xy, y_edges, countsxy, shading="auto", cmap="viridis")
@@ -415,6 +468,7 @@ ax.grid(True)
 plt.savefig("recoYxX.png")
 plt.close(fig)
 
+# standalone z vs x heat map
 fig, ax = plt.subplots()
 draw_xz_guides(ax)
 mesh = ax.pcolormesh(x_edges_xz, z_edges, countsxz, shading="auto", cmap="viridis")
@@ -428,6 +482,7 @@ ax.grid(True)
 plt.savefig("recoZvX.png")
 plt.close(fig)
 
+# standalone r2 vs z heat map
 fig, ax = plt.subplots()
 draw_r2z_guides(ax)
 mesh = ax.pcolormesh(r2_edges, z_edges_r2, countsr2, shading="auto", cmap="viridis")
