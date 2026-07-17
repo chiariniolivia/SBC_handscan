@@ -128,14 +128,14 @@ cam3ys = []
 for ev in evList:
     curSet = []
     for coord in ev:
-        cam1xs.append(coord[0])
-        cam1ys.append(coord[1])
-        cam2xs.append(coord[2])
-        cam2ys.append(coord[3])
-        cam3xs.append(coord[4])
-        cam3ys.append(coord[5])
-
-        curSet.append(triangulate_multi_cam_LS(coord))
+        cam1xs.append(coord[1])
+        cam1ys.append(coord[0])
+        cam2xs.append(coord[3])
+        cam2ys.append(coord[2])
+        cam3xs.append(coord[5])
+        cam3ys.append(coord[4])
+        coordToReco = (coord[1], coord[0], coord[3], coord[2], coord[5], coord[4])
+        curSet.append(triangulate_multi_cam_LS(coordToReco))
     sets3d.append(curSet)
 
 # reco plotting
