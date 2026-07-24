@@ -16,7 +16,7 @@ if not os.path.exists(root):
 
 
 # walk the root dir and pair up folders that have both a reco.sbc and bubble.sbc, stop after limiter pairs
-limiter = 150
+limiter = 1000
 count = 0
 finderRecoPairs = []
 for dirpath, dirnames, filenames in os.walk(root):
@@ -310,7 +310,7 @@ if not FIRST_PAIR_ONLY:
     TARGET_BIN_MM = 3.0       # physical bin width, in mm, for every heat map axis
     MAX_BINS_PER_AXIS = 2000  # hard cap regardless of TARGET_BIN_MM
 else:
-    TARGET_BIN_MM = 10.0       # physical bin width, in mm, for every heat map axis
+    TARGET_BIN_MM = 5.0       # physical bin width, in mm, for every heat map axis
     MAX_BINS_PER_AXIS = 2000  # hard cap regardless of TARGET_BIN_MM
 
 def mm_bin_edges(data_min, data_max, target_width_mm, max_bins=MAX_BINS_PER_AXIS):
@@ -450,7 +450,11 @@ ax3.set_ylim(-300, 50)
 ax3.set_title("r2 vs z")
 ax3.set_aspect('auto')
 
-plt.savefig("triheat.png")
+if FIRST_PAIR_ONLY:
+    plt.savefig("triheatSingle.png")
+else:
+    plt.savefig("triheatMult.png")
+
 plt.close(fig)
 
 
@@ -465,7 +469,10 @@ ax.set_title("y vs x")
 ax.set_xlim(-5 * 25.4, 5 * 25.4)
 ax.set_ylim(-5 * 25.4, 5 * 25.4)
 ax.grid(True)
-plt.savefig("recoYxX.png")
+if FIRST_PAIR_ONLY:
+    plt.savefig("recoYvXSingle.png")
+else:
+    plt.savefig("recoYvXMult.png")
 plt.close(fig)
 
 # standalone z vs x heat map
@@ -479,7 +486,10 @@ ax.set_title("z vs x")
 ax.set_xlim(0, 200)
 ax.set_ylim(-250, 100)
 ax.grid(True)
-plt.savefig("recoZvX.png")
+if FIRST_PAIR_ONLY:
+    plt.savefig("recoZvXSingle.png")
+else:
+    plt.savefig("recoZvXMult.png")
 plt.close(fig)
 
 # standalone r2 vs z heat map
@@ -493,5 +503,8 @@ ax.set_xlim(2500, 20000)
 ax.set_ylim(-300, 50)
 ax.set_title("r2 vs z")
 ax.grid(True)
-plt.savefig("recoR2vZ.png")
+if FIRST_PAIR_ONLY:
+    plt.savefig("recoR2vZSingle.png")
+else:
+    plt.savefig("recoR2vZMult.png")
 plt.close(fig)
