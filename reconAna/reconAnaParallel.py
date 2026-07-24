@@ -196,11 +196,11 @@ def plot_camera_subplot(ax, items, cam_id):
 
 # settings used by the bin edge helper below
 if not FIRST_PAIR_ONLY:
-    TARGET_BIN_MM = 10.0       # physical bin width, in mm, for every heat map axis
-    MAX_BINS_PER_AXIS = 20000  # hard cap regardless of TARGET_BIN_MM
+    TARGET_BIN_MM = 3.0       # physical bin width, in mm, for every heat map axis
+    MAX_BINS_PER_AXIS = 2000  # hard cap regardless of TARGET_BIN_MM
 else:
     TARGET_BIN_MM = 5.0       # physical bin width, in mm, for every heat map axis
-    MAX_BINS_PER_AXIS = 20000  # hard cap regardless of TARGET_BIN_MM
+    MAX_BINS_PER_AXIS = 2000  # hard cap regardless of TARGET_BIN_MM
 
 def mm_bin_edges(data_min, data_max, target_width_mm, max_bins=MAX_BINS_PER_AXIS):
     """Bin edges spaced at ~target_width_mm, evenly covering [data_min, data_max],
