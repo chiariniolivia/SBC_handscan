@@ -1,33 +1,14 @@
 # imports
 import sys, os
+import matplotlib
+# force the non-interactive backend: this script only ever calls savefig, and
+# forking worker processes after a GUI backend (e.g. TkAgg) has been touched
+# leads to tkinter cleanup errors in the child processes at exit.
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from sbcbinaryformat import Streamer, Writer
-
-# grab files
-if len(sys.argv) != 3:
-    print("Usage: reconTest.py <path to reco version> <path to output> ", file=sys.stderr)
-    sys.exit(2)
-recover = sys.argv[1]
-root = sys.argv[2]
-if not os.path.exists(root):
-    print(f"Path does not exist: {root}", file=sys.stderr)
-    sys.exit(2)
-
-# grab reco.py
-# helper to pull a function out of a python file by path, without a normal import
-import importlib.util
-def loadModule(path, moduleName):
-    path = os.path.expanduser(path)
-    if not os.path.isfile(path):
-        raise FileNotFoundError(path)
-    spec = importlib.util.spec_from_file_location(moduleName, path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    func = getattr(module,moduleName)
-    return func
-# load the getProjMat function from the given reco version
-getProjMat = loadModule(recover, "getProjMat")
+from concurrent.futures import ProcessPoolExecutor
 
 # 2d to 3d to 2d math
 
@@ -38,12 +19,10 @@ def backTo2d(P,x):
     proj = proj[:2] /proj[2]
     return proj
 
-
-# grab the projection matrix for each of the 3 cameras
+# projection matricies for the 3 cameras - populated in the __main__ block below,
+# and copied into each worker process by _initWorker so grabCoords can see it
+# whichever process it runs in (fork or spawn).
 projMatricies = []
-projMatricies.append(getProjMat(1))
-projMatricies.append(getProjMat(2))
-projMatricies.append(getProjMat(3))
 
 # if true, grabCoords stops and returns after the first bubble/reco pair where both the
 # bubble finder position and the reco coord are not nan and not <= -999
@@ -60,11 +39,9 @@ def grabCoords(bubbleInfo,reconInfo):
             seenEvents.add(evNum)
             eventsToCheck.append(evNum)
 
-    # Precompute, for every (event, frame) pair, the first valid 3D reco coord.
-    # This replicates the original nested-loop search order (row i ascending,
-    # then within-row frame index j ascending, first non-nan/non-sentinel value
-    # wins) but does it in a single O(n) pass instead of rescanning the whole
-    # reco array for every (event, frame) combination checked below.
+    # Precompute, for every (event, frame) pair, the first valid 3D reco coord,
+    # in a single O(n) pass over the reco array (row i ascending, then within-row
+    # frame index j ascending - first non-nan/non-sentinel value wins).
     recoLookup = {}
     reconEv = reconInfo["ev"]
     reconFrame = reconInfo["frame"]
@@ -85,8 +62,7 @@ def grabCoords(bubbleInfo,reconInfo):
                 recoLookup[key] = coord
 
     # Precompute, for every (event, frame) pair, the ordered list of bubble
-    # finder row indices. Replaces an O(n^2) rescan of the bubble array for
-    # every (event, frame) combination with one O(n) grouping pass.
+    # finder row indices, in a single O(n) grouping pass over the bubble array.
     bubbleLookup = {}
     bubbleEv = bubbleInfo["ev"]
     bubbleFrame = bubbleInfo["frame"]
@@ -147,29 +123,21 @@ def grabCoords(bubbleInfo,reconInfo):
                 recoToReturn.append((curReco, evNum))
     return setsToReturn, recoToReturn
 
-# walk the root dir and pair up folders that have both a reco.sbc and bubble.sbc, stop after limiter pairs.
-# process each pair immediately (rather than loading every folder's data into memory up front) so peak
-# memory stays bounded when there are many folders each holding hundreds of thousands of rows.
-limiter = 1000
-count = 0
-originalNewSets = []
-reconCoords = []
-for dirpath, dirnames, filenames in os.walk(root):
-    if "reco.sbc" in filenames and "bubble.sbc" in filenames:
-        recoPath = os.path.join(dirpath, "reco.sbc")
-        bubblePath = os.path.join(dirpath, "bubble.sbc")
-        recoData = Streamer(recoPath)
-        recoData = recoData.to_dict()
-        bubbleData = Streamer(bubblePath)
-        bubbleData = bubbleData.to_dict()
-        if recoData is None or bubbleData is None:
-            continue
-        setsToAdd, recosToAdd = grabCoords(bubbleData, recoData)
-        originalNewSets.append(setsToAdd)
-        reconCoords.append(recosToAdd)
-        count += 1
-    if count >= limiter:
-        break
+# runs once in each worker process, before it picks up any tasks - copies the
+# already-computed projection matricies into that process's global so grabCoords
+# (which is also re-created in the worker) can use them.
+def _initWorker(pm):
+    global projMatricies
+    projMatricies = pm
+
+# per-folder unit of work: read a reco/bubble pair off disk and run grabCoords on it.
+# runs in a worker process - this is what actually gets parallelized across cores.
+def processPair(recoPath, bubblePath):
+    recoData = Streamer(recoPath).to_dict()
+    bubbleData = Streamer(bubblePath).to_dict()
+    if recoData is None or bubbleData is None:
+        return None
+    return grabCoords(bubbleData, recoData)
 
 # pick a semi-random color for a given index, kept consistent across runs
 import colorsys
@@ -226,95 +194,6 @@ def plot_camera_subplot(ax, items, cam_id):
     ax.set_ylabel('y (pixels)')
     ax.invert_yaxis()
 
-# only make the per-camera scatter/arrow plots and reproj error histogram if there's just one event
-if count == 1:
-    # group points by camera so each subplot only gets its own cam's points
-    groups = {1: [], 2: [], 3: []}
-    for curSet in originalNewSets:
-        for item in curSet:
-            cam = int(item[2])
-            if cam in groups:
-                groups[cam].append((item))
-
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-    for i, cam_id in enumerate((1, 2, 3)):
-       plot_camera_subplot(axes[i], groups[cam_id], cam_id)
-    plt.tight_layout()
-    plt.savefig("camVisual.png")
-    plt.close()
-
-    # compute the reprojection error distance for every point, split by camera
-    dists_by_cam = {1: [], 2: [], 3: []}
-    wayTooFarAway = 0
-    total = 0
-    for curSet in originalNewSets:
-        for old, new, cam, ev in curSet:
-            total += 1
-            old = np.asarray(old, dtype=float)
-            new = np.asarray(new, dtype=float)
-
-            dist = np.linalg.norm(new - old)
-            if dist <= 2000:
-                dists_by_cam[int(cam)].append(dist)
-                if dist > 150:
-                    wayTooFarAway += 1
-            else:
-                wayTooFarAway +=1
-    print(f"More than 150 pixels away reproj error:\t" + str(wayTooFarAway) + "/" + str(total))
-    # build shared bins for the histogram from the full range of distances
-    all_dists = np.concatenate([np.asarray(dists_by_cam[k]) for k in (1, 2, 3)]) if any(dists_by_cam.values()) else np.array([])
-    if all_dists.size:
-        bins = np.linspace(0, all_dists.max(), 30)
-    else:
-        bins = 30
-    colors = {1: 'tab:blue', 2: 'tab:orange', 3: 'tab:green'}
-    alpha = 0.5
-    plt.figure(figsize=(8, 5))
-    for cam in (1, 2, 3):
-        plt.hist(dists_by_cam[cam], bins=bins, color=colors[cam], alpha=alpha,
-                 label=f'cam {cam}', edgecolor='black', linewidth=0.3)
-    plt.xlabel('Distance between coordinates (pixels)')
-    plt.ylabel('Count')
-    plt.title('Reprojection error')
-    plt.grid(alpha=0.3)
-    plt.tight_layout()
-    plt.legend()
-    plt.savefig("camHist.png")
-    plt.close()
-
-# pull x, y, z out of every reco coord and flag ones outside the detector's xy/z bounds
-xs, ys, zs, r2s = [], [], [], []
-
-total = 0
-badxy = 0
-badr2 = 0
-for curEv in reconCoords:
-    for coord in curEv:
-        x = coord[0][0]
-        y = coord[0][1]
-        z = coord[0][2]
-        r2 = x**2 + y**2
-        xs.append(x)
-        ys.append(y)
-        zs.append(z)
-        r2s.append(r2)
-        total += 1
-        if z <= 25.4 * -8.75 - 10 or z >= 25.4 * (14.71887 - 15.358) + 10:
-            badr2 += 1
-        if r2 >= (25.4 * (4.525 + 0.2) + 10)**2:
-            badxy += 1
-print(f"Outside of y vs x bounds:\t" + str(badxy) + "/" + str(total))
-print(f"Outside of z bounds:\t" + str(badr2) + "/" + str(total))
-
-# free up memory before building the heat maps below
-import gc
-gc.collect()
-
-xs = np.asarray(xs, dtype=np.float32)
-ys = np.asarray(ys, dtype=np.float32)
-zs = np.asarray(zs, dtype=np.float32)
-r2s = np.asarray(r2s, dtype=np.float32)
-
 # settings used by the bin edge helper below
 if not FIRST_PAIR_ONLY:
     TARGET_BIN_MM = 3.0       # physical bin width, in mm, for every heat map axis
@@ -337,30 +216,6 @@ def hist2d_counts(a, b, a_edges, b_edges):
     MB allocations the old code made for every heat map."""
     counts, _, _ = np.histogram2d(a, b, bins=[a_edges, b_edges])
     return counts.T.astype(np.float32)
-
-# build bin edges and 2d histograms for the xy and xz heat maps
-x_edges_xy = mm_bin_edges(xs.min(), xs.max(), TARGET_BIN_MM)
-y_edges = mm_bin_edges(ys.min(), ys.max(), TARGET_BIN_MM)
-z_edges = mm_bin_edges(zs.min(), zs.max(), TARGET_BIN_MM)
-x_edges_xz = x_edges_xy
-
-countsxy = hist2d_counts(xs, ys, x_edges_xy, y_edges)
-countsxz = hist2d_counts(xs, zs, x_edges_xz, z_edges)
-
-# build the r2 vs z heat map, only using points near the target region
-r2mask = (zs <= 50) & (r2s >= 2500)
-r2s_mask = r2s[r2mask]
-zs_mask = zs[r2mask]
-
-r_mask = np.sqrt(np.clip(r2s_mask, 0, None))          # mm^2 -> mm
-r_edges = mm_bin_edges(r_mask.min(), r_mask.max(), TARGET_BIN_MM)
-r2_edges = r_edges ** 2                                # mm -> mm^2 (non-uniform spacing)
-z_edges_r2 = mm_bin_edges(zs_mask.min(), zs_mask.max(), TARGET_BIN_MM)
-
-countsr2 = hist2d_counts(r2s_mask, zs_mask, r2_edges, z_edges_r2)
-
-del r2mask, r2s_mask, zs_mask, r_mask
-gc.collect()
 
 # draw the detector's xy boundary circles on top of a plot
 def draw_xy_guides(ax):
@@ -420,101 +275,275 @@ def draw_r2z_guides(ax):
     ax.plot((rcirc*np.cos(theta)+25.4*2.725)**2,
             rcirc*np.sin(theta)+25.4*(14.71997-15.358), c='r')
 
-# combined figure with all three heat maps (xy, xz, r2 vs z) side by side
-fig = plt.figure(figsize=(8, 8), constrained_layout=True)
-gs = fig.add_gridspec(nrows=3, ncols=2, height_ratios=[1, 1, 1])
 
-ax1 = fig.add_subplot(gs[0, 0])  # y vs x
-ax2 = fig.add_subplot(gs[0, 1])  # x vs z
-ax3 = fig.add_subplot(gs[2, :])  # r2 vs z
+# Everything below has side effects (reads argv, spawns worker processes, writes
+# files) so it's guarded by __main__ - required for multiprocessing to work
+# correctly regardless of whether the platform uses fork or spawn to start workers.
+if __name__ == "__main__":
+    # grab files
+    if len(sys.argv) != 3:
+        print("Usage: reconTest.py <path to reco version> <path to output> ", file=sys.stderr)
+        sys.exit(2)
+    recover = sys.argv[1]
+    root = sys.argv[2]
+    if not os.path.exists(root):
+        print(f"Path does not exist: {root}", file=sys.stderr)
+        sys.exit(2)
 
-for ax in (ax1, ax2, ax3):
-    ax.set_aspect('equal', adjustable='box')
+    # grab reco.py
+    # helper to pull a function out of a python file by path, without a normal import
+    import importlib.util
+    def loadModule(path, moduleName):
+        path = os.path.expanduser(path)
+        if not os.path.isfile(path):
+            raise FileNotFoundError(path)
+        spec = importlib.util.spec_from_file_location(moduleName, path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        func = getattr(module,moduleName)
+        return func
+    # load the getProjMat function from the given reco version
+    getProjMat = loadModule(recover, "getProjMat")
+
+    # grab the projection matrix for each of the 3 cameras
+    projMatricies.append(getProjMat(1))
+    projMatricies.append(getProjMat(2))
+    projMatricies.append(getProjMat(3))
+
+    # walk the root dir and collect folders that have both a reco.sbc and bubble.sbc,
+    # stop after limiter pairs. This is just a directory listing (cheap) - the actual
+    # file reads/parses/grabCoords calls happen below, in parallel across processes.
+    limiter = 1000
+    pairPaths = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        if "reco.sbc" in filenames and "bubble.sbc" in filenames:
+            pairPaths.append((os.path.join(dirpath, "reco.sbc"), os.path.join(dirpath, "bubble.sbc")))
+        if len(pairPaths) >= limiter:
+            break
+
+    # read + parse each folder's data and run grabCoords on it in a worker pool,
+    # instead of doing it serially in the main process. This is what removes the
+    # disk-I/O / binary-parsing time from the critical path on multi-core machines.
+    originalNewSets = []
+    reconCoords = []
+    if pairPaths:
+        with ProcessPoolExecutor(initializer=_initWorker, initargs=(projMatricies,)) as pool:
+            for result in pool.map(processPair, *zip(*pairPaths)):
+                if result is None:
+                    continue
+                setsToAdd, recosToAdd = result
+                originalNewSets.append(setsToAdd)
+                reconCoords.append(recosToAdd)
+    count = len(originalNewSets)
+
+    # only make the per-camera scatter/arrow plots and reproj error histogram if there's just one event
+    if count == 1:
+        # group points by camera so each subplot only gets its own cam's points
+        groups = {1: [], 2: [], 3: []}
+        for curSet in originalNewSets:
+            for item in curSet:
+                cam = int(item[2])
+                if cam in groups:
+                    groups[cam].append((item))
+
+        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+        for i, cam_id in enumerate((1, 2, 3)):
+           plot_camera_subplot(axes[i], groups[cam_id], cam_id)
+        plt.tight_layout()
+        plt.savefig("camVisual.png")
+        plt.close()
+
+        # compute the reprojection error distance for every point, split by camera
+        dists_by_cam = {1: [], 2: [], 3: []}
+        wayTooFarAway = 0
+        total = 0
+        for curSet in originalNewSets:
+            for old, new, cam, ev in curSet:
+                total += 1
+                old = np.asarray(old, dtype=float)
+                new = np.asarray(new, dtype=float)
+
+                dist = np.linalg.norm(new - old)
+                if dist <= 2000:
+                    dists_by_cam[int(cam)].append(dist)
+                    if dist > 150:
+                        wayTooFarAway += 1
+                else:
+                    wayTooFarAway +=1
+        print(f"More than 150 pixels away reproj error:\t" + str(wayTooFarAway) + "/" + str(total))
+        # build shared bins for the histogram from the full range of distances
+        all_dists = np.concatenate([np.asarray(dists_by_cam[k]) for k in (1, 2, 3)]) if any(dists_by_cam.values()) else np.array([])
+        if all_dists.size:
+            bins = np.linspace(0, all_dists.max(), 30)
+        else:
+            bins = 30
+        colors = {1: 'tab:blue', 2: 'tab:orange', 3: 'tab:green'}
+        alpha = 0.5
+        plt.figure(figsize=(8, 5))
+        for cam in (1, 2, 3):
+            plt.hist(dists_by_cam[cam], bins=bins, color=colors[cam], alpha=alpha,
+                     label=f'cam {cam}', edgecolor='black', linewidth=0.3)
+        plt.xlabel('Distance between coordinates (pixels)')
+        plt.ylabel('Count')
+        plt.title('Reprojection error')
+        plt.grid(alpha=0.3)
+        plt.tight_layout()
+        plt.legend()
+        plt.savefig("camHist.png")
+        plt.close()
+
+    # pull x, y, z out of every reco coord and flag ones outside the detector's xy/z bounds
+    xs, ys, zs, r2s = [], [], [], []
+
+    total = 0
+    badxy = 0
+    badr2 = 0
+    for curEv in reconCoords:
+        for coord in curEv:
+            x = coord[0][0]
+            y = coord[0][1]
+            z = coord[0][2]
+            r2 = x**2 + y**2
+            xs.append(x)
+            ys.append(y)
+            zs.append(z)
+            r2s.append(r2)
+            total += 1
+            if z <= 25.4 * -8.75 - 10 or z >= 25.4 * (14.71887 - 15.358) + 10:
+                badr2 += 1
+            if r2 >= (25.4 * (4.525 + 0.2) + 10)**2:
+                badxy += 1
+    print(f"Outside of y vs x bounds:\t" + str(badxy) + "/" + str(total))
+    print(f"Outside of z bounds:\t" + str(badr2) + "/" + str(total))
+
+    # free up memory before building the heat maps below
+    import gc
+    gc.collect()
+
+    xs = np.asarray(xs, dtype=np.float32)
+    ys = np.asarray(ys, dtype=np.float32)
+    zs = np.asarray(zs, dtype=np.float32)
+    r2s = np.asarray(r2s, dtype=np.float32)
+
+    # build bin edges and 2d histograms for the xy and xz heat maps
+    x_edges_xy = mm_bin_edges(xs.min(), xs.max(), TARGET_BIN_MM)
+    y_edges = mm_bin_edges(ys.min(), ys.max(), TARGET_BIN_MM)
+    z_edges = mm_bin_edges(zs.min(), zs.max(), TARGET_BIN_MM)
+    x_edges_xz = x_edges_xy
+
+    countsxy = hist2d_counts(xs, ys, x_edges_xy, y_edges)
+    countsxz = hist2d_counts(xs, zs, x_edges_xz, z_edges)
+
+    # build the r2 vs z heat map, only using points near the target region
+    r2mask = (zs <= 50) & (r2s >= 2500)
+    r2s_mask = r2s[r2mask]
+    zs_mask = zs[r2mask]
+
+    r_mask = np.sqrt(np.clip(r2s_mask, 0, None))          # mm^2 -> mm
+    r_edges = mm_bin_edges(r_mask.min(), r_mask.max(), TARGET_BIN_MM)
+    r2_edges = r_edges ** 2                                # mm -> mm^2 (non-uniform spacing)
+    z_edges_r2 = mm_bin_edges(zs_mask.min(), zs_mask.max(), TARGET_BIN_MM)
+
+    countsr2 = hist2d_counts(r2s_mask, zs_mask, r2_edges, z_edges_r2)
+
+    del r2mask, r2s_mask, zs_mask, r_mask
+    gc.collect()
+
+    # combined figure with all three heat maps (xy, xz, r2 vs z) side by side
+    fig = plt.figure(figsize=(8, 8), constrained_layout=True)
+    gs = fig.add_gridspec(nrows=3, ncols=2, height_ratios=[1, 1, 1])
+
+    ax1 = fig.add_subplot(gs[0, 0])  # y vs x
+    ax2 = fig.add_subplot(gs[0, 1])  # x vs z
+    ax3 = fig.add_subplot(gs[2, :])  # r2 vs z
+
+    for ax in (ax1, ax2, ax3):
+        ax.set_aspect('equal', adjustable='box')
+        ax.grid(True)
+
+    draw_xy_guides(ax1)
+    p1 = ax1.pcolormesh(x_edges_xy, y_edges, countsxy, shading="auto", cmap="viridis")
+    plt.colorbar(p1, label="Bubble count", ax=ax1)
+    ax1.set_xlabel("x (mm)")
+    ax1.set_ylabel("y (mm)")
+    ax1.set_title("y vs x")
+    ax1.set_xlim(-5 * 25.4, 5 * 25.4)
+    ax1.set_ylim(-5 * 25.4, 5 * 25.4)
+
+    draw_xz_guides(ax2)
+    p2 = ax2.pcolormesh(x_edges_xz, z_edges, countsxz, shading="auto", cmap="viridis")
+    plt.colorbar(p2, label="Bubble count", ax=ax2)
+    ax2.set_xlabel("x (mm)")
+    ax2.set_ylabel("z (mm)")
+    ax2.set_title("z vs x")
+    ax2.set_xlim(0, 200)
+    ax2.set_ylim(-250, 100)
+
+    draw_r2z_guides(ax3)
+    p3 = ax3.pcolormesh(r2_edges, z_edges_r2, countsr2, shading="auto", cmap="viridis")
+    plt.colorbar(p3, label="Bubble count", ax=ax3)
+    ax3.set_xlabel("r2 (mm^2)")
+    ax3.set_ylabel("z (mm)")
+    ax3.set_xlim(2500, 20000)
+    ax3.set_ylim(-300, 50)
+    ax3.set_title("r2 vs z")
+    ax3.set_aspect('auto')
+
+    if FIRST_PAIR_ONLY:
+        plt.savefig("triheatSingle.png")
+    else:
+        plt.savefig("triheatMult.png")
+
+    plt.close(fig)
+
+
+    # standalone y vs x heat map
+    fig, ax = plt.subplots()
+    draw_xy_guides(ax)
+    mesh = ax.pcolormesh(x_edges_xy, y_edges, countsxy, shading="auto", cmap="viridis")
+    plt.colorbar(mesh, label="Bubble count", ax=ax)
+    ax.set_xlabel("x (mm)")
+    ax.set_ylabel("y (mm)")
+    ax.set_title("y vs x")
+    ax.set_xlim(-5 * 25.4, 5 * 25.4)
+    ax.set_ylim(-5 * 25.4, 5 * 25.4)
     ax.grid(True)
+    if FIRST_PAIR_ONLY:
+        plt.savefig("recoYvXSingle.png")
+    else:
+        plt.savefig("recoYvXMult.png")
+    plt.close(fig)
 
-draw_xy_guides(ax1)
-p1 = ax1.pcolormesh(x_edges_xy, y_edges, countsxy, shading="auto", cmap="viridis")
-plt.colorbar(p1, label="Bubble count", ax=ax1)
-ax1.set_xlabel("x (mm)")
-ax1.set_ylabel("y (mm)")
-ax1.set_title("y vs x")
-ax1.set_xlim(-5 * 25.4, 5 * 25.4)
-ax1.set_ylim(-5 * 25.4, 5 * 25.4)
+    # standalone z vs x heat map
+    fig, ax = plt.subplots()
+    draw_xz_guides(ax)
+    mesh = ax.pcolormesh(x_edges_xz, z_edges, countsxz, shading="auto", cmap="viridis")
+    plt.colorbar(mesh, label="Bubble count", ax=ax)
+    ax.set_xlabel("x (mm)")
+    ax.set_ylabel("z (mm)")
+    ax.set_title("z vs x")
+    ax.set_xlim(0, 200)
+    ax.set_ylim(-250, 100)
+    ax.grid(True)
+    if FIRST_PAIR_ONLY:
+        plt.savefig("recoZvXSingle.png")
+    else:
+        plt.savefig("recoZvXMult.png")
+    plt.close(fig)
 
-draw_xz_guides(ax2)
-p2 = ax2.pcolormesh(x_edges_xz, z_edges, countsxz, shading="auto", cmap="viridis")
-plt.colorbar(p2, label="Bubble count", ax=ax2)
-ax2.set_xlabel("x (mm)")
-ax2.set_ylabel("z (mm)")
-ax2.set_title("z vs x")
-ax2.set_xlim(0, 200)
-ax2.set_ylim(-250, 100)
-
-draw_r2z_guides(ax3)
-p3 = ax3.pcolormesh(r2_edges, z_edges_r2, countsr2, shading="auto", cmap="viridis")
-plt.colorbar(p3, label="Bubble count", ax=ax3)
-ax3.set_xlabel("r2 (mm^2)")
-ax3.set_ylabel("z (mm)")
-ax3.set_xlim(2500, 20000)
-ax3.set_ylim(-300, 50)
-ax3.set_title("r2 vs z")
-ax3.set_aspect('auto')
-
-if FIRST_PAIR_ONLY:
-    plt.savefig("triheatSingle.png")
-else:
-    plt.savefig("triheatMult.png")
-
-plt.close(fig)
-
-
-# standalone y vs x heat map
-fig, ax = plt.subplots()
-draw_xy_guides(ax)
-mesh = ax.pcolormesh(x_edges_xy, y_edges, countsxy, shading="auto", cmap="viridis")
-plt.colorbar(mesh, label="Bubble count", ax=ax)
-ax.set_xlabel("x (mm)")
-ax.set_ylabel("y (mm)")
-ax.set_title("y vs x")
-ax.set_xlim(-5 * 25.4, 5 * 25.4)
-ax.set_ylim(-5 * 25.4, 5 * 25.4)
-ax.grid(True)
-if FIRST_PAIR_ONLY:
-    plt.savefig("recoYvXSingle.png")
-else:
-    plt.savefig("recoYvXMult.png")
-plt.close(fig)
-
-# standalone z vs x heat map
-fig, ax = plt.subplots()
-draw_xz_guides(ax)
-mesh = ax.pcolormesh(x_edges_xz, z_edges, countsxz, shading="auto", cmap="viridis")
-plt.colorbar(mesh, label="Bubble count", ax=ax)
-ax.set_xlabel("x (mm)")
-ax.set_ylabel("z (mm)")
-ax.set_title("z vs x")
-ax.set_xlim(0, 200)
-ax.set_ylim(-250, 100)
-ax.grid(True)
-if FIRST_PAIR_ONLY:
-    plt.savefig("recoZvXSingle.png")
-else:
-    plt.savefig("recoZvXMult.png")
-plt.close(fig)
-
-# standalone r2 vs z heat map
-fig, ax = plt.subplots()
-draw_r2z_guides(ax)
-mesh = ax.pcolormesh(r2_edges, z_edges_r2, countsr2, shading="auto", cmap="viridis")
-plt.colorbar(mesh, label="Bubble count", ax=ax)
-ax.set_xlabel("r2 (mm^2)")
-ax.set_ylabel("z (mm)")
-ax.set_xlim(2500, 20000)
-ax.set_ylim(-300, 50)
-ax.set_title("r2 vs z")
-ax.grid(True)
-if FIRST_PAIR_ONLY:
-    plt.savefig("recoR2vZSingle.png")
-else:
-    plt.savefig("recoR2vZMult.png")
-plt.close(fig)
+    # standalone r2 vs z heat map
+    fig, ax = plt.subplots()
+    draw_r2z_guides(ax)
+    mesh = ax.pcolormesh(r2_edges, z_edges_r2, countsr2, shading="auto", cmap="viridis")
+    plt.colorbar(mesh, label="Bubble count", ax=ax)
+    ax.set_xlabel("r2 (mm^2)")
+    ax.set_ylabel("z (mm)")
+    ax.set_xlim(2500, 20000)
+    ax.set_ylim(-300, 50)
+    ax.set_title("r2 vs z")
+    ax.grid(True)
+    if FIRST_PAIR_ONLY:
+        plt.savefig("recoR2vZSingle.png")
+    else:
+        plt.savefig("recoR2vZMult.png")
+    plt.close(fig)
