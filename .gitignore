@@ -1,3 +1,6 @@
+.ipynb_checkpoints/
+reconAna/.ipynb_checkpoints/
+reconAna/reconAna_cache.pkl
 __pycache__/
 handscanScratch/
 *.csv
