@@ -14,6 +14,13 @@ import random
 import numpy as np
 from sbcbinaryformat import Streamer, Writer
 
+# cheap stand-in for a content hash: used to notice when a reco.sbc/bubble.sbc
+# file has been rewritten (e.g. reprocessed) so a per-folder cache entry can be
+# invalidated without re-reading the file itself.
+def file_fingerprint(path):
+    st = os.stat(path)
+    return (st.st_mtime_ns, st.st_size)
+
 # helper to pull a function out of a python file by path, without a normal import
 def loadModule(path, moduleName):
     path = os.path.expanduser(path)
