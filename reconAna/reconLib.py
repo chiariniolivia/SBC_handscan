@@ -159,10 +159,7 @@ def processPair(recoPath, bubblePath):
     bubbleData = Streamer(bubblePath).to_dict()
     if recoData is None or bubbleData is None:
         return None
-    setsToReturn, recoToReturn = grabCoords(bubbleData, recoData)
-    reprojError = np.asarray(recoData["reprojError"], dtype=float)
-    reprojError = reprojError[~np.isnan(reprojError)]
-    return setsToReturn, recoToReturn, reprojError
+    return grabCoords(bubbleData, recoData)
 
 # pick a semi-random color for a given index, kept consistent across runs
 def color_for_index(i):
