@@ -45,10 +45,10 @@ for dirpath, dirnames, filenames in os.walk(ROOT_PATH):
             break
         usedEvent = False
         for i in rows:
-            valid = reprojError[i][~np.isnan(reprojError[i])]
-            if not valid.size:
-                continue
+            valid = reprojError[i][(~np.isnan(reprojError[i]))]
             coord = coords3D[i]
+            if not valid.size or coord[0] <= -998:
+                continue
             usedEvent = True
             if USE_FIRST_VALID_ONLY:
                 collected.append((valid[0], coord))
@@ -90,7 +90,6 @@ print("Saved reprojErrorHist.png")
 
 plt.figure(figsize=(8, 5))
 plt.hist(outRegionErrs, bins=50, color='tab:red', edgecolor='black', linewidth=0.3)
-plt.yscale('log')
 plt.xlabel('Reprojection Error (pixels)')
 plt.ylabel('log Count')
 plt.title('3D Reprojection Error (outside region, no pixel limit)')
