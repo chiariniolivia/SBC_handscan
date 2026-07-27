@@ -4,8 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sbcbinaryformat import Streamer
 
-ROOT_PATH = "/exp/e961/data/SBC-25-recon/dev-output/"   # directory to walk for reco.sbc files
-LIMITER = 5000                                            # stop once this many events have a valid reprojError
+ROOT_PATH = "/exp/e961/data/SBC-25-recon/v0.3.0/"   # directory to walk for reco.sbc files
+LIMITER = 50000000                                            # stop once this many events have a valid reprojError
 
 firstValidErrs = []
 
@@ -37,15 +37,20 @@ for dirpath, dirnames, filenames in os.walk(ROOT_PATH):
                 break
 
 print(f"{len(firstValidErrs)} event(s) with a first-valid reprojError value (limiter={LIMITER}).")
+MAX_REPROJ_ERR = 50   # pixels
 
 firstValidErrs = np.asarray(firstValidErrs, dtype=float)
+inRange = firstValidErrs[firstValidErrs <= MAX_REPROJ_ERR]
+excluded = firstValidErrs.size - inRange.size
+pctExcluded = 100 * excluded / firstValidErrs.size if firstValidErrs.size else 0.0
+print(f"{excluded}/{firstValidErrs.size} event(s) excluded ({pctExcluded:.2f}%) for reprojError > {MAX_REPROJ_ERR} px.")
 
 plt.figure(figsize=(8, 5))
-plt.hist(firstValidErrs, bins=50, color='tab:purple', edgecolor='black', linewidth=0.3)
+plt.hist(inRange, bins=50, range=(0, MAX_REPROJ_ERR), color='tab:purple', edgecolor='black', linewidth=0.3)
 plt.yscale('log')
-plt.xlabel('reprojError')
-plt.ylabel('Count (log scale)')
-plt.title('reco.sbc reprojError - first valid value per event')
+plt.xlabel('Reprojection Error (pixels)')
+plt.ylabel('log Count')
+plt.title(f'3D Reprojection Error')
 plt.grid(alpha=0.3)
 plt.tight_layout()
 plt.savefig("reprojErrorHist.png")
