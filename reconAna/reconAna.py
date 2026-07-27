@@ -135,6 +135,7 @@ def _initWorker(pm):
 def processPair(recoPath, bubblePath):
     recoData = Streamer(recoPath).to_dict()
     bubbleData = Streamer(bubblePath).to_dict()
+    print(recoData)
     if recoData is None or bubbleData is None:
         return None
     return grabCoords(bubbleData, recoData)
