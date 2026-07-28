@@ -77,6 +77,11 @@ excluded = inRegionErrs.size - inRange.size
 pctExcluded = 100 * excluded / inRegionErrs.size if inRegionErrs.size else 0.0
 print(f"{excluded}/{inRegionErrs.size} in-region value(s) excluded ({pctExcluded:.2f}%) for reprojError > {MAX_REPROJ_ERR} px.")
 
+outRange = outRegionErrs[outRegionErrs <= MAX_REPROJ_ERR]
+excludedOut = outRegionErrs.size - outRange.size
+pctExcludedOut = 100 * excludedOut / outRegionErrs.size if outRegionErrs.size else 0.0
+print(f"{excludedOut}/{outRegionErrs.size} out-of-region value(s) excluded ({pctExcludedOut:.2f}%) for reprojError > {MAX_REPROJ_ERR} px.")
+
 plt.figure(figsize=(8, 5))
 plt.hist(inRange, bins=50, range=(0, MAX_REPROJ_ERR), color='tab:purple', edgecolor='black', linewidth=0.3)
 plt.yscale('log')
@@ -89,10 +94,11 @@ plt.savefig("reprojErrorHist.png")
 print("Saved reprojErrorHist.png")
 
 plt.figure(figsize=(8, 5))
-plt.hist(outRegionErrs, bins=50, color='tab:red', edgecolor='black', linewidth=0.3)
+plt.hist(outRange, bins=50, range=(0, MAX_REPROJ_ERR), color='tab:red', edgecolor='black', linewidth=0.3)
+plt.yscale('log')
 plt.xlabel('Reprojection Error (pixels)')
 plt.ylabel('log Count')
-plt.title('3D Reprojection Error (outside region, no pixel limit)')
+plt.title('3D Reprojection Error (outside region)')
 plt.grid(alpha=0.3)
 plt.tight_layout()
 plt.savefig("reprojErrorHist_outsideRegion.png")
