@@ -70,7 +70,7 @@ outRegionErrs = errs[~inRegionMask]
 pctOutRegion = 100 * outRegionErrs.size / errs.size if errs.size else 0.0
 print(f"{outRegionErrs.size}/{errs.size} value(s) ({pctOutRegion:.2f}%) fell outside the defined 3D region.")
 
-MAX_REPROJ_ERR = 50   # pixels - only applied to the in-region histogram
+MAX_REPROJ_ERR = 50   # pixels - cutoff applied to each histogram below
 
 inRange = inRegionErrs[inRegionErrs <= MAX_REPROJ_ERR]
 excluded = inRegionErrs.size - inRange.size
@@ -81,6 +81,11 @@ outRange = outRegionErrs[outRegionErrs <= MAX_REPROJ_ERR]
 excludedOut = outRegionErrs.size - outRange.size
 pctExcludedOut = 100 * excludedOut / outRegionErrs.size if outRegionErrs.size else 0.0
 print(f"{excludedOut}/{outRegionErrs.size} out-of-region value(s) excluded ({pctExcludedOut:.2f}%) for reprojError > {MAX_REPROJ_ERR} px.")
+
+allRange = errs[errs <= MAX_REPROJ_ERR]
+excludedAll = errs.size - allRange.size
+pctExcludedAll = 100 * excludedAll / errs.size if errs.size else 0.0
+print(f"{excludedAll}/{errs.size} value(s) (in + out of region) excluded ({pctExcludedAll:.2f}%) for reprojError > {MAX_REPROJ_ERR} px.")
 
 plt.figure(figsize=(8, 5))
 plt.hist(inRange, bins=50, range=(0, MAX_REPROJ_ERR), color='tab:purple', edgecolor='black', linewidth=0.3)
@@ -103,3 +108,14 @@ plt.grid(alpha=0.3)
 plt.tight_layout()
 plt.savefig("reprojErrorHist_outsideRegion.png")
 print("Saved reprojErrorHist_outsideRegion.png")
+
+plt.figure(figsize=(8, 5))
+plt.hist(allRange, bins=50, range=(0, MAX_REPROJ_ERR), color='tab:blue', edgecolor='black', linewidth=0.3)
+plt.yscale('log')
+plt.xlabel('Reprojection Error (pixels)')
+plt.ylabel('log Count')
+plt.title('3D Reprojection Error (all data, in + out of region)')
+plt.grid(alpha=0.3)
+plt.tight_layout()
+plt.savefig("reprojErrorHist_all.png")
+print("Saved reprojErrorHist_all.png")
